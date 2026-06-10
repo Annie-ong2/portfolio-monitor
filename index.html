@@ -1118,27 +1118,41 @@ const NEWS_SOURCES = [
   { url: 'https://news.google.com/rss/search?q=SpaceX+IPO+AI+investment&hl=en&gl=US&ceid=US:en', label: 'Google·자금이동' },
 ];
 
-const CORS_PROXY = 'https://api.allorigins.win/get?url=';
+const CORS_PROXY = 'https://corsproxy.io/?url=';
 
 async function fetchNewsHeadlines() {
   const headlines = [];
+
+  // 프록시 목록 — 순서대로 시도
+  const PROXIES = [
+    { url: 'https://corsproxy.io/?url=',           parse: r => r.text() },
+    { url: 'https://api.codetabs.com/v1/proxy?quest=', parse: r => r.text() },
+  ];
+
   for (const src of NEWS_SOURCES) {
-    try {
-      const res = await fetch(CORS_PROXY + encodeURIComponent(src.url));
-      const data = await res.json();
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(data.contents, 'text/xml');
-      const items = xml.querySelectorAll('item');
-      items.forEach((item, i) => {
-        if (i >= 4) return; // 소스당 최대 4개
-        const title = item.querySelector('title')?.textContent || '';
-        const desc  = item.querySelector('description')?.textContent?.replace(/<[^>]+>/g,'') || '';
-        const link  = item.querySelector('link')?.textContent || '#';
-        const pubDate = item.querySelector('pubDate')?.textContent || '';
-        headlines.push({ title, desc: desc.slice(0, 200), link, pubDate, source: src.label });
-      });
-    } catch(e) {
-      // 개별 소스 실패는 무시
+    let fetched = false;
+    for (const proxy of PROXIES) {
+      try {
+        const res = await fetch(proxy.url + encodeURIComponent(src.url));
+        if (!res.ok) continue;
+        const text = await proxy.parse(res);
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, 'text/xml');
+        const items = xml.querySelectorAll('item');
+        if (items.length === 0) continue;
+        items.forEach((item, i) => {
+          if (i >= 4) return;
+          const title   = item.querySelector('title')?.textContent || '';
+          const desc    = item.querySelector('description')?.textContent?.replace(/<[^>]+>/g,'') || '';
+          const link    = item.querySelector('link')?.textContent || '#';
+          const pubDate = item.querySelector('pubDate')?.textContent || '';
+          if (title) headlines.push({ title, desc: desc.slice(0, 200), link, pubDate, source: src.label });
+        });
+        fetched = true;
+        break; // 이 소스는 성공, 다음 소스로
+      } catch(e) {
+        continue; // 다음 프록시 시도
+      }
     }
   }
   return headlines;
@@ -1159,10 +1173,18 @@ async function runNewsScan() {
   const headlines = await fetchNewsHeadlines();
 
   if (headlines.length === 0) {
-    status.textContent = '뉴스 수집 실패 — 네트워크를 확인하거나 잠시 후 다시 시도하세요';
+    status.textContent = '뉴스 수집 실패 — 잠시 후 재시도 버튼을 눌러주세요';
     btn.disabled = false;
     btn.textContent = '↻ 재시도';
     dot.style.background = 'var(--red)';
+    document.getElementById('alertContainer').innerHTML = `
+      <div class="empty-alert" style="color:var(--yellow)">
+        ⚠ 뉴스 수집에 실패했어요<br>
+        <span style="font-size:10px;color:var(--muted)">
+          네트워크 상태를 확인하고 재시도 버튼을 눌러주세요.<br>
+          반복 실패 시 VPN 환경이거나 프록시가 일시적으로 막힌 경우예요.
+        </span>
+      </div>`;
     return;
   }
 
