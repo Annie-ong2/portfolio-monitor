@@ -621,21 +621,25 @@
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:.12em;">보유 기간</div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text)" id="holdingDaysText">-</div>
   </div>
-  <div style="position:relative;height:6px;background:var(--border);border-radius:3px;margin-bottom:8px;">
-    <div id="holdingProgressBar" style="height:100%;background:linear-gradient(90deg,var(--accent),var(--blue));border-radius:3px;transition:width .5s ease;width:0%;"></div>
-    <div id="holdingProgressDot" style="position:absolute;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:var(--text-hi);border:2px solid var(--accent);border-radius:50%;left:0%;transition:left .5s ease;"></div>
+  <!-- 바 + 오늘 라벨 (절대위치) -->
+  <div style="position:relative;margin-bottom:22px;">
+    <div style="height:6px;background:var(--border);border-radius:3px;">
+      <div id="holdingProgressBar" style="height:100%;background:linear-gradient(90deg,var(--accent),var(--blue));border-radius:3px;transition:width .5s ease;width:0%;"></div>
+    </div>
+    <div id="holdingProgressDot" style="position:absolute;top:3px;transform:translate(-50%,-50%);width:12px;height:12px;background:var(--text-hi);border:2px solid var(--accent);border-radius:50%;left:0%;transition:left .5s ease;"></div>
+    <!-- 오늘 라벨 — JS로 left 위치 제어 -->
+    <div id="holdingTodayPin" style="position:absolute;top:12px;transform:translateX(-50%);font-family:'IBM Plex Mono',monospace;font-size:9px;text-align:center;left:0%;transition:left .5s ease;">
+      <div style="color:var(--yellow);font-weight:600;white-space:nowrap;">오늘</div>
+      <div style="color:var(--text-dim);" id="holdingTodayDate">-</div>
+    </div>
   </div>
   <div style="display:flex;justify-content:space-between;">
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim)">
-      <div style="color:var(--text);font-weight:600;">2026.06.02</div>
+      <div style="color:var(--text);font-weight:600;">06.02</div>
       <div>최초 매수</div>
     </div>
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);text-align:center;">
-      <div style="color:var(--yellow);font-weight:600;" id="holdingTodayLabel">오늘</div>
-      <div id="holdingTodayDate">-</div>
-    </div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);text-align:right;">
-      <div style="color:var(--green);font-weight:600;">2026.09.02</div>
+      <div style="color:var(--green);font-weight:600;">09.02</div>
       <div>3개월 목표</div>
     </div>
   </div>
@@ -713,7 +717,7 @@
     <!-- 1년 차트 -->
     <div style="margin-top:10px;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
-      <canvas id="samsungChart" style="width:100%;height:80px;display:block;"></canvas>
+      <canvas id="samsungChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
         <span style="display:inline-block;width:8px;height:2px;background:var(--accent);vertical-align:middle;"></span>
         <span>매수 2026.06.04 · 평균단가 <span style="color:var(--yellow)">349,500원</span></span>
@@ -789,7 +793,7 @@
     <!-- 1년 차트 -->
     <div style="margin-top:10px;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
-      <canvas id="micronChart" style="width:100%;height:80px;display:block;"></canvas>
+      <canvas id="micronChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
         <span style="display:inline-block;width:8px;height:2px;background:var(--accent);vertical-align:middle;"></span>
         <span>매수 2026.06.02 · 평균단가 <span style="color:var(--yellow)">$1,040.60</span></span>
@@ -797,6 +801,23 @@
     </div>
   </div>
 
+</div>
+
+<!-- AI 판단 — 시장 온도계 위 -->
+<div class="section-label" style="margin-top:14px;">AI 종합 판단</div>
+<div class="ai-box" style="margin-bottom:10px;">
+  <div class="ai-header">
+    <div class="ai-icon">✦</div>
+    <div class="ai-title">CLAUDE · 전략 분석</div>
+    <div style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--muted)" id="aiTime">-</div>
+  </div>
+  <!-- 판단 뱃지 -->
+  <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;" id="aiVerdictBadges">
+    <span class="badge badge-hold" style="font-size:11px;padding:5px 12px;">삼성전자 HOLD</span>
+    <span class="badge badge-watch" style="font-size:11px;padding:5px 12px;">마이크론 WATCH</span>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 D-14</span>
+  </div>
+  <div class="ai-content" id="aiContent">분석 로딩 중...</div>
 </div>
 
 <!-- 시장 온도계 -->
@@ -894,24 +915,6 @@
     </div>
   </div>
 
-</div>
-
-<!-- AI 판단 -->
-<div class="section-label" style="margin-top:14px;">AI 종합 판단</div>
-<div class="ai-box" style="margin-bottom:10px;">
-  <div class="ai-header">
-    <div class="ai-icon">✦</div>
-    <div class="ai-title">CLAUDE · 전략 분석</div>
-    <div style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--muted)" id="aiTime">-</div>
-  </div>
-  <div class="ai-content" id="aiContent">
-    분석 로딩 중...
-  </div>
-  <div class="ai-verdict">
-    <span class="verdict-chip vc-hold">삼성전자 HOLD</span>
-    <span class="verdict-chip vc-watch">마이크론 WATCH</span>
-    <span class="verdict-chip vc-event">6/24 실적 발표 D-14</span>
-  </div>
 </div>
 
 <!-- 주요 일정 -->
@@ -1156,7 +1159,6 @@ async function fetchAll() {
 }
 
 function updateAI(sam, mu, krw, tnx) {
-  let text = '';
   const signals = [];
 
   if (sam) {
@@ -1166,10 +1168,27 @@ function updateAI(sam, mu, krw, tnx) {
     if (tnx && tnx.price > 5.0) signals.push('미 10년물 5% 초과 — 성장주 밸류에이션 부담');
   }
 
+  // D-day 업데이트
+  const dDay = Math.ceil((new Date('2026-06-24') - new Date()) / (1000 * 60 * 60 * 24));
+  const dDayChip = document.getElementById('dDayChip');
+  if (dDayChip) dDayChip.textContent = `6/24 실적발표 D-${dDay}`;
+
+  let text = '';
   if (signals.length === 0) {
-    text = `현재 <strong>매수 논리가 유지</strong>되고 있습니다. 삼성전자는 HBM4 납기 정상 진행 중이며, 마이크론은 6월 24일 실적 발표가 핵심 촉매입니다. <strong>패닉셀 구간에서는 홀드 유지</strong>를 권장하며, 논리 훼손 신호 발생 전까지 기계적 손절은 지양합니다. 환율 1,550원 돌파 여부와 외국인 수급 방향을 매일 확인하세요.`;
+    // 뱃지 — 정상 상태
+    document.getElementById('aiVerdictBadges').innerHTML = `
+      <span class="badge badge-hold" style="font-size:11px;padding:5px 12px;">삼성전자 HOLD</span>
+      <span class="badge badge-watch" style="font-size:11px;padding:5px 12px;">마이크론 WATCH</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;">6/24 실적발표 D-${dDay}</span>
+    `;
+    text = `삼성전자는 HBM4 납기 정상 진행 중이며, 마이크론은 6월 24일 실적 발표가 핵심 촉매입니다. 패닉셀 구간에서는 홀드를 유지하고, 논리 훼손 신호 발생 전까지 기계적 손절은 지양합니다. 환율 1,550원 돌파 여부와 외국인 수급 방향을 매일 확인하세요.`;
   } else {
-    text = `⚠️ <strong>주의 신호 감지:</strong> ${signals.join(' / ')}. 매수 논리 훼손 여부를 즉시 점검하세요. 단, 패닉셀 여부를 먼저 판단하고 — 다음날 상당 부분 회복된다면 홀드를 유지합니다. <strong>훼손 신호가 구조적이라면 분할 매도를 검토</strong>하세요.`;
+    // 뱃지 — 경고 상태
+    document.getElementById('aiVerdictBadges').innerHTML = `
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 12px;border-radius:4px;background:var(--red-dim);color:var(--red);border:1px solid var(--red)50;font-weight:700;">⚠ 주의 신호</span>
+      <span class="badge badge-watch" style="font-size:11px;padding:5px 12px;">매수 논리 점검 필요</span>
+    `;
+    text = `<span style="color:var(--red);font-weight:600;">⚠ 주의 신호 감지:</span> ${signals.join(' / ')}. 매수 논리 훼손 여부를 즉시 점검하세요. 단, 패닉셀 여부를 먼저 판단하고 — 다음날 상당 부분 회복된다면 홀드를 유지합니다. 훼손 신호가 구조적이라면 분할 매도를 검토하세요.`;
   }
 
   document.getElementById('aiContent').innerHTML = text;
@@ -1180,13 +1199,14 @@ function drawChart(canvasId, history, buyDateStr, bep, currency) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
-  // 캔버스 실제 픽셀 크기 설정
   const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const W = rect.width  || canvas.offsetWidth  || 300;
-  const H = rect.height || canvas.offsetHeight || 80;
+  // offsetWidth/Height가 0이면 부모 너비로 추정
+  const W = Math.max(canvas.offsetWidth, canvas.parentElement?.offsetWidth || 300);
+  const H = 80;
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
@@ -1299,12 +1319,16 @@ function updateHoldingBar() {
   const days    = Math.floor(elapsed / (1000 * 60 * 60 * 24));
   const remain  = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
 
+  // mm.dd 서식
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${mm}.${dd}`;
+
   document.getElementById('holdingProgressBar').style.width = pct + '%';
   document.getElementById('holdingProgressDot').style.left  = pct + '%';
-  document.getElementById('holdingDaysText').textContent =
-    `경과 ${days}일 · 잔여 ${remain}일`;
-  document.getElementById('holdingTodayDate').textContent =
-    today.toLocaleDateString('ko-KR', {month:'2-digit', day:'2-digit'}).replace('. ', '.').replace('.', '');
+  document.getElementById('holdingTodayPin').style.left     = pct + '%';
+  document.getElementById('holdingTodayDate').textContent   = todayStr;
+  document.getElementById('holdingDaysText').textContent    = `경과 ${days}일 · 잔여 ${remain}일`;
 }
 
 // ── Claude API 뉴스 자동 감지 ──
