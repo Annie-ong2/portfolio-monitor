@@ -669,10 +669,8 @@
       </div>
     </div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;">
-      <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
-      <span id="samsungQuoteTime">종가 시간 조회 중...</span>
-      <span style="color:var(--border)">·</span>
-      <span style="color:var(--muted)">15분 지연</span>
+      <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>
+      <span id="samsungQuoteTime">체결 시간 조회 중...</span>
     </div>
     <div class="stock-meta">
       <div class="meta-item">
@@ -719,8 +717,8 @@
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
       <canvas id="samsungChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:8px;height:2px;background:var(--accent);vertical-align:middle;"></span>
-        <span>매수 2026.06.04 · 평균단가 <span style="color:var(--yellow)">349,500원</span></span>
+        <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
+        <span>매수 2026.06.04 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">349,500원</span></span>
       </div>
     </div>
   </div>
@@ -746,9 +744,7 @@
     </div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;">
       <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
-      <span id="micronQuoteTime">종가 시간 조회 중...</span>
-      <span style="color:var(--border)">·</span>
-      <span style="color:var(--muted)">15분 지연</span>
+      <span id="micronQuoteTime">체결 시간 조회 중...</span>
     </div>
     <div class="stock-meta">
       <div class="meta-item">
@@ -795,8 +791,8 @@
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
       <canvas id="micronChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:8px;height:2px;background:var(--accent);vertical-align:middle;"></span>
-        <span>매수 2026.06.02 · 평균단가 <span style="color:var(--yellow)">$1,040.60</span></span>
+        <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
+        <span>매수 2026.06.02 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">$1,040.60</span></span>
       </div>
     </div>
   </div>
@@ -813,8 +809,8 @@
   </div>
   <!-- 판단 뱃지 -->
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;" id="aiVerdictBadges">
-    <span class="badge badge-hold" style="font-size:11px;padding:5px 12px;">삼성전자 HOLD</span>
-    <span class="badge badge-watch" style="font-size:11px;padding:5px 12px;">마이크론 WATCH</span>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:var(--green-dim);color:var(--green);border:1px solid var(--green)60;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)40;">포지션 유지</span>
     <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 D-14</span>
   </div>
   <div class="ai-content" id="aiContent">분석 로딩 중...</div>
@@ -997,23 +993,28 @@ async function fetchQuote(symbol, history = false) {
   }
 }
 
-// 종가 시간 포맷 — 한국시간 + 미국시간 병기
-function fmtMarketTime(unixSec, exchangeTz) {
+// 종가 시간 포맷
+function fmtMarketTime(unixSec, exchangeTz, symbol) {
   if (!unixSec) return '시간 미확인';
-  const ms  = unixSec * 1000;
-  const krDate = new Date(ms).toLocaleString('ko-KR', {
+  const ms = unixSec * 1000;
+  const krStr = new Date(ms).toLocaleString('ko-KR', {
     timeZone: 'Asia/Seoul',
     month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
   });
-  // 미국 시간대 결정 (한국/미국 공통 처리)
+
+  // KRX 종목(.KS, .KQ)은 한국 시간만 표시
+  const isKorean = symbol && (symbol.endsWith('.KS') || symbol.endsWith('.KQ'));
+  if (isKorean) return `${krStr} 체결`;
+
+  // 미국 등 해외 — 현지시간 병기
   const usTz = (exchangeTz && exchangeTz.includes('America')) ? exchangeTz : 'America/New_York';
-  const usDate = new Date(ms).toLocaleString('en-US', {
+  const usStr = new Date(ms).toLocaleString('en-US', {
     timeZone: usTz,
     hour: '2-digit', minute: '2-digit',
     hour12: false,
   });
-  return `${krDate} 종가 (현지 ${usDate})`;
+  return `${krStr} 체결 (현지 ${usStr}) · 15분 지연 수신`;
 }
 
 function fmt(n, decimals=0) {
@@ -1067,7 +1068,7 @@ async function fetchAll() {
 
     // 실제 종가 시간 표시 (한국 + 미국 병기)
     document.getElementById('samsungQuoteTime').textContent =
-      fmtMarketTime(sam.marketTime, sam.exchangeTimezoneName);
+      fmtMarketTime(sam.marketTime, sam.exchangeTimezoneName, '005930.KS');
 
     // 1년 차트 그리기
     if (sam.history) drawChart('samsungChart', sam.history, '2026-06-04', 349500, '원');
@@ -1087,7 +1088,8 @@ async function fetchAll() {
 
     document.getElementById('micronPrice').textContent  = fmtUSD(mu.price);
     document.getElementById('micronChange').className   = 'price-change ' + colorClass(mu.change);
-    document.getElementById('micronChange').textContent = sign(mu.change) + '$' + Math.abs(mu.change).toFixed(2) + ' (' + sign(mu.changePct) + mu.changePct.toFixed(2) + '%)';
+    document.getElementById('micronChange').textContent =
+      (mu.change >= 0 ? '+' : '') + '$' + mu.change.toFixed(2) + ' (' + (mu.changePct >= 0 ? '+' : '') + mu.changePct.toFixed(2) + '%)';
     document.getElementById('micronReturn').className   = 'price-change ' + colorClass(ret);
     document.getElementById('micronReturn').textContent = sign(ret) + ret.toFixed(2) + '%';
     document.getElementById('micronEval').textContent   = fmtUSD(mu.price * QTY);
@@ -1098,9 +1100,9 @@ async function fetchAll() {
     document.getElementById('micronPnl').textContent    = (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     document.getElementById('micronPnl').className      = colorClass(pnl);
 
-    // 실제 종가 시간 표시 (한국 + 미국 병기)
+    // 실제 종가 시간 표시
     document.getElementById('micronQuoteTime').textContent =
-      fmtMarketTime(mu.marketTime, mu.exchangeTimezoneName);
+      fmtMarketTime(mu.marketTime, mu.exchangeTimezoneName, 'MU');
 
     // 1년 차트 그리기
     if (mu.history) drawChart('micronChart', mu.history, '2026-06-02', 1040.60, 'USD');
@@ -1175,20 +1177,20 @@ function updateAI(sam, mu, krw, tnx) {
 
   let text = '';
   if (signals.length === 0) {
-    // 뱃지 — 정상 상태
+    // 전략 논리 유지 — 초록색 강조
     document.getElementById('aiVerdictBadges').innerHTML = `
-      <span class="badge badge-hold" style="font-size:11px;padding:5px 12px;">삼성전자 HOLD</span>
-      <span class="badge badge-watch" style="font-size:11px;padding:5px 12px;">마이크론 WATCH</span>
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;">6/24 실적발표 D-${dDay}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:var(--green-dim);color:var(--green);border:1px solid var(--green)60;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)40;">포지션 유지</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 D-${dDay}</span>
     `;
     text = `삼성전자는 HBM4 납기 정상 진행 중이며, 마이크론은 6월 24일 실적 발표가 핵심 촉매입니다. 패닉셀 구간에서는 홀드를 유지하고, 논리 훼손 신호 발생 전까지 기계적 손절은 지양합니다. 환율 1,550원 돌파 여부와 외국인 수급 방향을 매일 확인하세요.`;
   } else {
-    // 뱃지 — 경고 상태
+    // 훼손 신호 감지 — 빨간색 경고
     document.getElementById('aiVerdictBadges').innerHTML = `
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 12px;border-radius:4px;background:var(--red-dim);color:var(--red);border:1px solid var(--red)50;font-weight:700;">⚠ 주의 신호</span>
-      <span class="badge badge-watch" style="font-size:11px;padding:5px 12px;">매수 논리 점검 필요</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:var(--red-dim);color:var(--red);border:1px solid var(--red)60;font-weight:700;letter-spacing:.06em;animation:alertPulse 2s infinite;">⚠ 논리 훼손 신호</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--yellow-dim);color:var(--yellow);border:1px solid var(--yellow)40;">즉시 점검 필요</span>
     `;
-    text = `<span style="color:var(--red);font-weight:600;">⚠ 주의 신호 감지:</span> ${signals.join(' / ')}. 매수 논리 훼손 여부를 즉시 점검하세요. 단, 패닉셀 여부를 먼저 판단하고 — 다음날 상당 부분 회복된다면 홀드를 유지합니다. 훼손 신호가 구조적이라면 분할 매도를 검토하세요.`;
+    text = `<span style="color:var(--red);font-weight:600;">⚠ 신호 감지:</span> ${signals.join(' / ')}. 매수 논리 훼손 여부를 즉시 점검하세요. 단, 패닉셀 여부를 먼저 판단하고 — 다음날 상당 부분 회복된다면 홀드를 유지합니다. 훼손 신호가 구조적이라면 분할 매도를 검토하세요.`;
   }
 
   document.getElementById('aiContent').innerHTML = text;
@@ -1276,32 +1278,32 @@ function drawChart(canvasId, history, buyDateStr, bep, currency) {
   const buyX = xOf(buyIdx);
   const buyY = yOf(data[buyIdx].c);
 
-  // 수직선
+  // 수직선 — 흰색 계열
   ctx.beginPath();
   ctx.setLineDash([2, 2]);
-  ctx.strokeStyle = '#7b61ffaa';
+  ctx.strokeStyle = 'rgba(238,240,245,0.5)';
   ctx.lineWidth = 1;
   ctx.moveTo(buyX, pad.top);
   ctx.lineTo(buyX, pad.top + cH);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // 매수 점
+  // 매수 점 — 흰색
   ctx.beginPath();
   ctx.arc(buyX, buyY, 4, 0, Math.PI * 2);
-  ctx.fillStyle = '#7b61ff';
+  ctx.fillStyle = 'rgba(238,240,245,0.9)';
   ctx.fill();
   ctx.beginPath();
   ctx.arc(buyX, buyY, 2, 0, Math.PI * 2);
-  ctx.fillStyle = '#eef0f5';
+  ctx.fillStyle = '#0a0c10';
   ctx.fill();
 
-  // 매수가 라벨
+  // 매수가 라벨 — 흰색
   const labelText = currency === '원'
     ? Math.round(bep).toLocaleString('ko-KR') + '원'
     : '$' + bep.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   ctx.font = `${8 * dpr / dpr}px 'IBM Plex Mono', monospace`;
-  ctx.fillStyle = '#f5c542';
+  ctx.fillStyle = '#eef0f5';
   ctx.textAlign = buyIdx > data.length * 0.7 ? 'right' : 'left';
   const labelX = buyIdx > data.length * 0.7 ? buyX - 6 : buyX + 6;
   ctx.fillText(labelText, labelX, Math.max(pad.top + 10, buyY - 6));
