@@ -644,7 +644,7 @@
     </div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;">
       <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
-      <span id="samsungQuoteTime">조회 중...</span>
+      <span id="samsungQuoteTime">종가 시간 조회 중...</span>
       <span style="color:var(--border)">·</span>
       <span style="color:var(--muted)">15분 지연</span>
     </div>
@@ -711,7 +711,7 @@
     </div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;">
       <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
-      <span id="micronQuoteTime">조회 중...</span>
+      <span id="micronQuoteTime">종가 시간 조회 중...</span>
       <span style="color:var(--border)">·</span>
       <span style="color:var(--muted)">15분 지연</span>
     </div>
@@ -1003,10 +1003,11 @@ async function fetchAll() {
     document.getElementById('samsungPnl').textContent    = sign(pnl) + fmt(pnl) + '원';
     document.getElementById('samsungPnl').className      = colorClass(pnl);
 
-    // 조회 시점 표시
-    const samTime = new Date();
-    document.getElementById('samsungQuoteTime').textContent =
-      samTime.toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) + ' 조회';
+    // 실제 종가 시간 표시
+    const samMarketTime = sam.marketTime
+      ? new Date(sam.marketTime * 1000).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) + ' 종가'
+      : '시간 미확인';
+    document.getElementById('samsungQuoteTime').textContent = samMarketTime;
 
     // 배지 업데이트
     const badge = document.getElementById('samsungBadge');
@@ -1034,10 +1035,11 @@ async function fetchAll() {
     document.getElementById('micronPnl').textContent    = (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     document.getElementById('micronPnl').className      = colorClass(pnl);
 
-    // 조회 시점 표시
-    const muTime = new Date();
-    document.getElementById('micronQuoteTime').textContent =
-      muTime.toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) + ' 조회';
+    // 실제 종가 시간 표시
+    const muMarketTime = mu.marketTime
+      ? new Date(mu.marketTime * 1000).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) + ' 종가'
+      : '시간 미확인';
+    document.getElementById('micronQuoteTime').textContent = muMarketTime;
 
     if (mu.prePrice) {
       const preChg = ((mu.prePrice - mu.price) / mu.price * 100);
