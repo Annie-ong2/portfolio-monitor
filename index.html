@@ -15,15 +15,20 @@
     --text-dim:  #6b7280;
     --text:      #c9cdd8;
     --text-hi:   #eef0f5;
-    --green:     #00c896;
-    --green-dim: #00c89620;
-    --red:       #ff4d6a;
-    --red-dim:   #ff4d6a20;
+    --green:     #ff4d6a;   /* 한국 주식: 상승=빨강 */
+    --green-dim: #ff4d6a20;
+    --red:       #4d9fff;   /* 한국 주식: 하락=파랑 */
+    --red-dim:   #4d9fff20;
+    --pos:       #ff4d6a;   /* 양수 강조색 */
+    --neg:       #4d9fff;   /* 음수 강조색 */
     --yellow:    #f5c542;
     --yellow-dim:#f5c54220;
     --blue:      #4d9fff;
     --blue-dim:  #4d9fff18;
     --accent:    #7b61ff;
+    /* 알림/신호용 색상 (주가와 별개) */
+    --alert-red:   #ff4d6a;
+    --alert-green: #00c896;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -143,8 +148,8 @@
     font-size: 12px;
     font-weight: 600;
   }
-  .up   { color: var(--green); }
-  .down { color: var(--red); }
+  .up   { color: #ff4d6a; }   /* 한국 주식: 상승=빨강 */
+  .down { color: #4d9fff; }   /* 한국 주식: 하락=파랑 */
 
   .stock-meta {
     display: grid;
@@ -235,9 +240,9 @@
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .s-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .s-green  { background: #00c896; box-shadow: 0 0 6px #00c896; }
   .s-yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
-  .s-red    { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .s-red    { background: #ff4d6a; box-shadow: 0 0 6px #ff4d6a; }
 
   .signal-text { flex: 1; font-size: 12px; color: var(--text); line-height: 1.4; }
   .signal-text strong { color: var(--text-hi); font-weight: 600; }
@@ -672,7 +677,7 @@
       <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>
       <span id="samsungQuoteTime">체결 시간 조회 중...</span>
     </div>
-    <div class="stock-meta">
+    <div class="stock-meta" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="meta-item">
         <label>보유수량</label>
         <span>70주</span>
@@ -682,10 +687,6 @@
         <span>349,500원</span>
       </div>
       <div class="meta-item">
-        <label>1차 익절</label>
-        <span style="color:var(--green)">380,000원</span>
-      </div>
-      <div class="meta-item">
         <label>평가금액</label>
         <span id="samsungEval">-</span>
       </div>
@@ -693,9 +694,28 @@
         <label>손익금액</label>
         <span id="samsungPnlAmt" class="down">-</span>
       </div>
+    </div>
+    <!-- 익절/손절 테이블 -->
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
       <div class="meta-item">
-        <label>2차 익절</label>
-        <span style="color:var(--green)">420,000원</span>
+        <label style="color:#ff4d6a;">1차 익절(예상)</label>
+        <span style="color:#ff4d6a;font-family:'IBM Plex Mono',monospace;font-size:11px;">380,000원</span>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#ff4d6a;opacity:.7;">(+8.7%)</div>
+      </div>
+      <div class="meta-item">
+        <label style="color:#ff4d6a;">2차 익절(예상)</label>
+        <span style="color:#ff4d6a;font-family:'IBM Plex Mono',monospace;font-size:11px;">420,000원</span>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#ff4d6a;opacity:.7;">(+20.2%)</div>
+      </div>
+      <div class="meta-item">
+        <label style="color:#4d9fff;">1차 손절(예상)</label>
+        <span style="color:#4d9fff;font-family:'IBM Plex Mono',monospace;font-size:11px;">297,075원</span>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4d9fff;opacity:.7;">(-15.0%)</div>
+      </div>
+      <div class="meta-item">
+        <label style="color:#4d9fff;">2차 손절(예상)</label>
+        <span style="color:#4d9fff;font-family:'IBM Plex Mono',monospace;font-size:11px;">279,600원</span>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4d9fff;opacity:.7;">(-20.0%)</div>
       </div>
     </div>
     <div class="market-ext">
@@ -746,7 +766,7 @@
       <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
       <span id="micronQuoteTime">체결 시간 조회 중...</span>
     </div>
-    <div class="stock-meta">
+    <div class="stock-meta" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="meta-item">
         <label>보유수량</label>
         <span>30주</span>
@@ -756,10 +776,6 @@
         <span>$1,040.60</span>
       </div>
       <div class="meta-item">
-        <label>1차 익절</label>
-        <span style="color:var(--green)">$1,100.00</span>
-      </div>
-      <div class="meta-item">
         <label>평가금액</label>
         <span id="micronEval">-</span>
       </div>
@@ -767,9 +783,28 @@
         <label>손익금액</label>
         <span id="micronPnlAmt" class="down">-</span>
       </div>
+    </div>
+    <!-- 익절/손절 테이블 -->
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
       <div class="meta-item">
-        <label>2차 익절</label>
-        <span style="color:var(--green)">$1,200.00</span>
+        <label style="color:#ff4d6a;">1차 익절(예상)</label>
+        <span style="color:#ff4d6a;font-family:'IBM Plex Mono',monospace;font-size:11px;">$1,100.00</span>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#ff4d6a;opacity:.7;">(+5.7%)</div>
+      </div>
+      <div class="meta-item">
+        <label style="color:#ff4d6a;">2차 익절(예상)</label>
+        <span style="color:#ff4d6a;font-family:'IBM Plex Mono',monospace;font-size:11px;">$1,200.00</span>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#ff4d6a;opacity:.7;">(+15.3%)</div>
+      </div>
+      <div class="meta-item">
+        <label style="color:#4d9fff;">1차 손절(예상)</label>
+        <span style="color:#4d9fff;font-family:'IBM Plex Mono',monospace;font-size:11px;">$884.51</span>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4d9fff;opacity:.7;">(-15.0%)</div>
+      </div>
+      <div class="meta-item">
+        <label style="color:#4d9fff;">2차 손절(예상)</label>
+        <span style="color:#4d9fff;font-family:'IBM Plex Mono',monospace;font-size:11px;">$832.48</span>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4d9fff;opacity:.7;">(-20.0%)</div>
       </div>
     </div>
     <div class="market-ext">
@@ -809,7 +844,7 @@
   </div>
   <!-- 판단 뱃지 -->
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;" id="aiVerdictBadges">
-    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:var(--green-dim);color:var(--green);border:1px solid var(--green)60;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89660;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
     <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)40;">포지션 유지</span>
     <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 D-14</span>
   </div>
@@ -1177,20 +1212,20 @@ function updateAI(sam, mu, krw, tnx) {
 
   let text = '';
   if (signals.length === 0) {
-    // 전략 논리 유지 — 초록색 강조
+    // 전략 논리 유지 — 고정 초록색
     document.getElementById('aiVerdictBadges').innerHTML = `
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:var(--green-dim);color:var(--green);border:1px solid var(--green)60;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89660;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)40;">포지션 유지</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 D-${dDay}</span>
     `;
     text = `삼성전자는 HBM4 납기 정상 진행 중이며, 마이크론은 6월 24일 실적 발표가 핵심 촉매입니다. 패닉셀 구간에서는 홀드를 유지하고, 논리 훼손 신호 발생 전까지 기계적 손절은 지양합니다. 환율 1,550원 돌파 여부와 외국인 수급 방향을 매일 확인하세요.`;
   } else {
-    // 훼손 신호 감지 — 빨간색 경고
+    // 훼손 신호 감지 — 고정 빨간색 경고
     document.getElementById('aiVerdictBadges').innerHTML = `
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:var(--red-dim);color:var(--red);border:1px solid var(--red)60;font-weight:700;letter-spacing:.06em;animation:alertPulse 2s infinite;">⚠ 논리 훼손 신호</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#ff4d6a20;color:#ff4d6a;border:1px solid #ff4d6a60;font-weight:700;letter-spacing:.06em;animation:alertPulse 2s infinite;">⚠ 논리 훼손 신호</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--yellow-dim);color:var(--yellow);border:1px solid var(--yellow)40;">즉시 점검 필요</span>
     `;
-    text = `<span style="color:var(--red);font-weight:600;">⚠ 신호 감지:</span> ${signals.join(' / ')}. 매수 논리 훼손 여부를 즉시 점검하세요. 단, 패닉셀 여부를 먼저 판단하고 — 다음날 상당 부분 회복된다면 홀드를 유지합니다. 훼손 신호가 구조적이라면 분할 매도를 검토하세요.`;
+    text = `<span style="color:#ff4d6a;font-weight:600;">⚠ 신호 감지:</span> ${signals.join(' / ')}. 매수 논리 훼손 여부를 즉시 점검하세요. 단, 패닉셀 여부를 먼저 판단하고 — 다음날 상당 부분 회복된다면 홀드를 유지합니다. 훼손 신호가 구조적이라면 분할 매도를 검토하세요.`;
   }
 
   document.getElementById('aiContent').innerHTML = text;
