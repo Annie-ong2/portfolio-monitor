@@ -642,6 +642,12 @@
         <div class="price-change" id="samsungReturn" style="font-size:16px;">-</div>
       </div>
     </div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;">
+      <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
+      <span id="samsungQuoteTime">조회 중...</span>
+      <span style="color:var(--border)">·</span>
+      <span style="color:var(--muted)">15분 지연</span>
+    </div>
     <div class="stock-meta">
       <div class="meta-item">
         <label>보유수량</label>
@@ -653,7 +659,7 @@
       </div>
       <div class="meta-item">
         <label>1차 익절</label>
-        <span style="color:var(--green)">349,500원</span>
+        <span style="color:var(--green)">380,000원</span>
       </div>
       <div class="meta-item">
         <label>평가금액</label>
@@ -665,7 +671,7 @@
       </div>
       <div class="meta-item">
         <label>2차 익절</label>
-        <span style="color:var(--green)">390,000원</span>
+        <span style="color:var(--green)">420,000원</span>
       </div>
     </div>
     <div class="market-ext">
@@ -703,6 +709,12 @@
         <div class="price-change" id="micronReturn" style="font-size:16px;">-</div>
       </div>
     </div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:4px;">
+      <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
+      <span id="micronQuoteTime">조회 중...</span>
+      <span style="color:var(--border)">·</span>
+      <span style="color:var(--muted)">15분 지연</span>
+    </div>
     <div class="stock-meta">
       <div class="meta-item">
         <label>보유수량</label>
@@ -714,7 +726,7 @@
       </div>
       <div class="meta-item">
         <label>1차 익절</label>
-        <span style="color:var(--green)">$1,040.60</span>
+        <span style="color:var(--green)">$1,100.00</span>
       </div>
       <div class="meta-item">
         <label>평가금액</label>
@@ -726,7 +738,7 @@
       </div>
       <div class="meta-item">
         <label>2차 익절</label>
-        <span style="color:var(--green)">$1,150.00</span>
+        <span style="color:var(--green)">$1,200.00</span>
       </div>
     </div>
     <div class="market-ext">
@@ -900,7 +912,7 @@
 </div>
 
 <!-- AI 뉴스 자동 감지 알림 -->
-<div class="section-label" style="margin-top:14px;">🔍 AI 이슈 자동 감지</div>
+<div class="section-label" id="aiSectionLabel" style="margin-top:14px;">🔍 AI 이슈 자동 감지</div>
 
 <div class="news-scan-status">
   <div class="scan-dot" id="scanDot"></div>
@@ -962,9 +974,9 @@ async function fetchAll() {
     fetchQuote('005930.KS'),
     fetchQuote('MU'),
     fetchQuote('KRW=X'),
-    fetchQuote('%5ETNX'),
-    fetchQuote('%5ESOX'),
-    fetchQuote('%5ENDX'),
+    fetchQuote('^TNX'),
+    fetchQuote('^SOX'),
+    fetchQuote('^NDX'),
   ]);
 
   samsungData = sam;
@@ -991,6 +1003,11 @@ async function fetchAll() {
     document.getElementById('samsungPnl').textContent    = sign(pnl) + fmt(pnl) + '원';
     document.getElementById('samsungPnl').className      = colorClass(pnl);
 
+    // 조회 시점 표시
+    const samTime = new Date();
+    document.getElementById('samsungQuoteTime').textContent =
+      samTime.toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) + ' 조회';
+
     // 배지 업데이트
     const badge = document.getElementById('samsungBadge');
     if (ret <= -20) { badge.textContent='REDUCE'; badge.className='badge badge-sell'; }
@@ -1011,11 +1028,16 @@ async function fetchAll() {
     document.getElementById('micronReturn').textContent = sign(ret) + ret.toFixed(2) + '%';
     document.getElementById('micronEval').textContent   = fmtUSD(mu.price * QTY);
     document.getElementById('micronPnlAmt').className   = colorClass(pnl);
-    document.getElementById('micronPnlAmt').textContent = sign(pnl) + '$' + Math.abs(pnl).toFixed(0);
+    document.getElementById('micronPnlAmt').textContent = (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     document.getElementById('micron52H').textContent    = fmtUSD(mu.high52);
     document.getElementById('micron52L').textContent    = fmtUSD(mu.low52);
-    document.getElementById('micronPnl').textContent    = sign(pnl) + '$' + Math.abs(pnl).toFixed(0);
+    document.getElementById('micronPnl').textContent    = (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     document.getElementById('micronPnl').className      = colorClass(pnl);
+
+    // 조회 시점 표시
+    const muTime = new Date();
+    document.getElementById('micronQuoteTime').textContent =
+      muTime.toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) + ' 조회';
 
     if (mu.prePrice) {
       const preChg = ((mu.prePrice - mu.price) / mu.price * 100);
@@ -1092,9 +1114,6 @@ function updateAI(sam, mu, krw, tnx) {
 
 // ── Claude API 뉴스 자동 감지 ──
 
-// 감지된 알림 저장 (세션 유지)
-let detectedAlerts = [];
-
 // 모니터링할 뉴스 키워드 & RSS 소스
 const NEWS_SOURCES = [
   { url: 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=MU&region=US&lang=en-US', label: 'Yahoo·MU' },
@@ -1104,11 +1123,8 @@ const NEWS_SOURCES = [
   { url: 'https://news.google.com/rss/search?q=SpaceX+IPO+AI+investment&hl=en&gl=US&ceid=US:en', label: 'Google·자금이동' },
 ];
 
-const CORS_PROXY = 'https://corsproxy.io/?url=';
-
 async function fetchNewsHeadlines() {
   const headlines = [];
-
   for (const src of NEWS_SOURCES) {
     try {
       const proxyUrl = `/api/news?url=${encodeURIComponent(src.url)}`;
@@ -1142,9 +1158,8 @@ async function runNewsScan() {
   btn.disabled = true;
   btn.textContent = '스캔 중...';
   dot.style.background = 'var(--yellow)';
-  status.innerHTML = '<span class="loading">뉴스 수집 중...</span>';
 
-  // 1단계: 뉴스 헤드라인 수집
+  // 1단계: 뉴스 수집
   status.innerHTML = '<span class="loading">① 최신 뉴스 수집 중 (야후·구글)...</span>';
   const headlines = await fetchNewsHeadlines();
 
@@ -1166,53 +1181,23 @@ async function runNewsScan() {
 
   status.innerHTML = `<span class="loading">② Claude가 ${headlines.length}개 뉴스 분석 중...</span>`;
 
-  // 2단계: Claude API로 영향도 분석
-  const headlineText = headlines.map((h, i) =>
-    `[${i+1}] (${h.source}) ${h.title} | ${h.desc}`
-  ).join('\n');
-
-  const prompt = `당신은 삼성전자(005930.KS)와 마이크론 테크놀로지(MU) 두 종목을 보유한 투자자의 포트폴리오 모니터링 AI입니다.
-
-현재 보유 현황:
-- 삼성전자: 70주, 매입단가 349,500원, 현재 -13.45% 손실 중
-- 마이크론: 30주, 매입단가 $1,040.60, 현재 -13.78% 손실 중
-- 보유 전략: 3개월 중기 보유, 매수 논리 훼손 시 매도
-
-아래 최신 뉴스 헤드라인들을 분석하여, 이 두 종목의 투자 전략에 중요한 영향을 줄 수 있는 이슈를 골라내 주세요.
-
-감지 기준:
-1. 지정학/외교: 트럼프 발언, 미중 갈등, 중동 전쟁 확전, 무역 규제
-2. AI 산업: 빅테크 AI 투자 변화, 중국 AI 기업 돌파구, 새 AI 모델 충격
-3. 자금 이동: SpaceX IPO, 비트코인 급등 등 시장 자금 이탈 이슈
-4. 반도체: HBM 수요 변화, 공급 과잉, 경쟁사 동향
-5. 금리/환율: 연준 발언, 원달러 급변, 인플레이션 재점화
-
-최신 뉴스 목록:
-${headlineText}
-
-반드시 JSON 형식으로만 응답하세요. 다른 텍스트 없이 순수 JSON만:
-{
-  "alerts": [
-    {
-      "impact": "HIGH 또는 MEDIUM 또는 LOW",
-      "category": "지정학 또는 AI산업 또는 자금이동 또는 반도체 또는 금리환율",
-      "title": "한국어로 핵심 이슈 제목 (30자 이내)",
-      "analysis": "한국어로 두 종목에 미치는 영향 분석 (60자 이내)",
-      "affected": ["삼성전자", "마이크론"] 중 해당 종목,
-      "action": "HOLD 또는 WATCH 또는 REVIEW",
-      "sourceIndex": 원본뉴스번호(1부터)
-    }
-  ],
-  "summary": "전체 시장 상황 한 줄 요약 (50자 이내)"
-}
-
-중요하지 않은 뉴스는 포함하지 마세요. 실제로 투자 판단에 영향을 주는 이슈만 최대 6개까지 선별하세요.`;
+  // 2단계: 실시간 손익 계산 후 Claude 분석 요청
+  const samRet = samsungData ? ((samsungData.price - 349500) / 349500 * 100).toFixed(2) : '-13.45';
+  const muRet  = micronData  ? ((micronData.price  - 1040.60) / 1040.60 * 100).toFixed(2) : '-13.78';
+  const samPrice = samsungData ? Math.round(samsungData.price).toLocaleString('ko-KR') + '원' : '미조회';
+  const muPrice  = micronData  ? '$' + micronData.price.toFixed(2) : '미조회';
 
   try {
     const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ headlines })
+      body: JSON.stringify({
+        headlines,
+        portfolio: {
+          samsung: { qty: 70, bep: 349500, currentPrice: samPrice, returnPct: samRet },
+          micron:  { qty: 30, bep: 1040.60, currentPrice: muPrice, returnPct: muRet }
+        }
+      })
     });
 
     if (!response.ok) throw new Error(`서버 오류: ${response.status}`);
@@ -1308,20 +1293,16 @@ function renderAlerts(parsed, headlines) {
   html += `</div>`;
   container.innerHTML = html;
 
-  // 높은 영향도 있으면 섹션 제목 강조
-  if (hasHigh) {
-    document.querySelector('.section-label').style.color = 'var(--red)';
+  // HIGH 이슈 있으면 AI 이슈 감지 섹션 제목만 강조
+  const aiSectionLabel = document.getElementById('aiSectionLabel');
+  if (aiSectionLabel) {
+    aiSectionLabel.style.color = alerts.some(a => a.impact === 'HIGH') ? 'var(--red)' : 'var(--muted)';
   }
 }
 
-// ── 자동 스캔 스케줄 (30분마다) ──
-setInterval(() => {
-  runNewsScan();
-}, 30 * 60 * 1000);
-
 // 최초 실행
 fetchAll();
-// 5분마다 자동 갱신
+// 5분마다 주가 자동 갱신
 setInterval(fetchAll, 300000);
 </script>
 </body>
