@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API 키 미설정' });
 
-  const { headlines } = req.body;
+  const { headlines, portfolio } = req.body;
   if (!headlines || headlines.length === 0) {
     return res.status(400).json({ error: '헤드라인 없음' });
   }
@@ -19,12 +19,21 @@ export default async function handler(req, res) {
     `[${i+1}] (${h.source}) ${h.title} | ${h.desc}`
   ).join('\n');
 
+  // 실시간 포트폴리오 정보 반영
+  const samInfo = portfolio?.samsung
+    ? `70주, 매입단가 349,500원, 현재가 ${portfolio.samsung.currentPrice}, 수익률 ${portfolio.samsung.returnPct}%`
+    : '70주, 매입단가 349,500원';
+  const muInfo = portfolio?.micron
+    ? `30주, 매입단가 $1,040.60, 현재가 ${portfolio.micron.currentPrice}, 수익률 ${portfolio.micron.returnPct}%`
+    : '30주, 매입단가 $1,040.60';
+
   const prompt = `당신은 삼성전자(005930.KS)와 마이크론 테크놀로지(MU) 두 종목을 보유한 투자자의 포트폴리오 모니터링 AI입니다.
 
-현재 보유 현황:
-- 삼성전자: 70주, 매입단가 349,500원, 현재 -13.45% 손실 중
-- 마이크론: 30주, 매입단가 $1,040.60, 현재 -13.78% 손실 중
+현재 보유 현황 (실시간):
+- 삼성전자: ${samInfo}
+- 마이크론: ${muInfo}
 - 전략: 3개월 중기 보유, 매수 논리 훼손 시 매도
+- 익절 목표: 삼성전자 1차 380,000원/2차 420,000원, 마이크론 1차 $1,100/2차 $1,200
 
 아래 최신 뉴스를 분석해 두 종목 투자 전략에 중요한 영향을 줄 이슈를 골라주세요.
 
