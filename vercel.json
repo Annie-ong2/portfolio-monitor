@@ -1,17 +1,12 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/*.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    }
-  ],
+  "functions": {
+    "quote.js": { "runtime": "edge" },
+    "news.js":  { "runtime": "edge" }
+  },
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+    { "src": "/api/quote", "dest": "/quote.js" },
+    { "src": "/api/news",  "dest": "/news.js"  },
+    { "src": "/",          "dest": "/index.html" }
   ]
 }
