@@ -1,16 +1,20 @@
-// Vercel 서버리스 함수 — 야후 파이낸스 프록시
+// Vercel 서버리스 함수 — 야후 파이낸스 프록시 (시세 + 1년 히스토리)
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
 
-  const { symbol } = req.query;
+  const { symbol, history } = req.query;
   if (!symbol) return res.status(400).json({ error: 'symbol 필요' });
 
-  // ^ 기호가 있는 지수 심볼 처리 (%5E로 들어올 수 있음)
   const cleanSymbol = decodeURIComponent(symbol);
+  const needHistory = history === 'true';
+
+  // 히스토리 필요 시 1년치, 아니면 당일
+  const range    = needHistory ? '1y' : '1d';
+  const interval = needHistory ? '1d' : '1d';
 
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSymbol)}?interval=1d&range=1d`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSymbol)}?interval=${interval}&range=${range}`;
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -29,11 +33,12 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: '종목 데이터 없음' });
     }
 
-    const meta = data.chart.result[0].meta;
-    const prev = meta.chartPreviousClose || meta.previousClose || meta.regularMarketPrice;
+    const result = data.chart.result[0];
+    const meta   = result.meta;
+    const prev   = meta.chartPreviousClose || meta.previousClose || meta.regularMarketPrice;
 
-    return res.status(200).json({
-      symbol: cleanSymbol,
+    const base = {
+      symbol:      cleanSymbol,
       price:       meta.regularMarketPrice,
       prevClose:   prev,
       change:      meta.regularMarketPrice - prev,
@@ -44,8 +49,21 @@ export default async function handler(req, res) {
       prePrice:    meta.preMarketPrice  || null,
       postPrice:   meta.postMarketPrice || null,
       currency:    meta.currency,
-      marketTime:  meta.regularMarketTime || null,  // Unix timestamp (초 단위)
-    });
+      marketTime:  meta.regularMarketTime || null,
+      exchangeTimezoneName: meta.exchangeTimezoneName || null,
+    };
+
+    // 1년치 히스토리 포함
+    if (needHistory && result.timestamp && result.indicators?.quote?.[0]?.close) {
+      const timestamps = result.timestamp;
+      const closes     = result.indicators.quote[0].close;
+      base.history = timestamps.map((t, i) => ({
+        t: t,          // Unix timestamp (초)
+        c: closes[i],  // 종가
+      })).filter(d => d.c !== null && d.c !== undefined);
+    }
+
+    return res.status(200).json(base);
 
   } catch (e) {
     return res.status(500).json({ error: e.message });
