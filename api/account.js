@@ -150,6 +150,8 @@ export default async function handler(req, res) {
         : Promise.resolve([]),
     ]);
 
+    // 23시간 캐시 — 토큰 1일 1회 발급 원칙 준수
+    res.setHeader('Cache-Control', 's-maxage=82800, stale-while-revalidate');
     return res.status(200).json({
       domestic:          domesticResult.status === 'fulfilled' ? domesticResult.value : [],
       overseas:          overseasResult.status === 'fulfilled' ? overseasResult.value : [],
