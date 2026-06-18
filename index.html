@@ -778,6 +778,10 @@
         <span class="realized-val" id="samsungRealizedPnl">-</span>
       </div>
       <div class="realized-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
+        <span class="realized-label">평가손익 (미실현)</span>
+        <span class="realized-val" id="samsungEvalPnl">-</span>
+      </div>
+      <div class="realized-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
         <span class="realized-label">총 손익 (평가+실현)</span>
         <span class="realized-val" id="samsungTotalPnl">-</span>
       </div>
@@ -875,6 +879,10 @@
       <div class="realized-row">
         <span class="realized-label">실현손익 (확정)</span>
         <span class="realized-val" id="micronRealizedPnl">-</span>
+      </div>
+      <div class="realized-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
+        <span class="realized-label">평가손익 (미실현)</span>
+        <span class="realized-val" id="micronEvalPnl">-</span>
       </div>
       <div class="realized-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
         <span class="realized-label">총 손익 (평가+실현)</span>
@@ -1119,19 +1127,24 @@ function applyTrades(data) {
       rPnl.textContent  = (pnl >= 0 ? '+' : '') + fmt(Math.round(pnl)) + '원';
       rPnl.style.color  = pnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
+    const ePnl = document.getElementById('samsungEvalPnl');
+    if (ePnl) {
+      ePnl.textContent = (evalPnl >= 0 ? '+' : '') + fmt(Math.round(evalPnl)) + '원';
+      ePnl.style.color = evalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
+    }
     const tPnl = document.getElementById('samsungTotalPnl');
     if (tPnl) {
       tPnl.textContent  = (totalPnl >= 0 ? '+' : '') + fmt(Math.round(totalPnl)) + '원';
       tPnl.style.color  = totalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
 
-    // 체결내역 목록 (삼성전자만)
-    const samTrades = trades.filter(t => t.symbol === '005930').slice(0, 5);
+    // 체결내역 목록 — 색상 흰색
+    const samTrades = trades.filter(t => t.symbol === '005930').slice(0, 10);
     const tradeDiv  = document.getElementById('samsungTrades');
     if (tradeDiv && samTrades.length > 0) {
       tradeDiv.innerHTML = samTrades.map(t => `
         <div class="trade-item">
-          <span class="${t.side === 'SELL' ? 'trade-side-sell' : 'trade-side-buy'}">${t.side === 'SELL' ? '매도' : '매수'}</span>
+          <span style="color:var(--text);font-weight:600;">${t.side === 'SELL' ? '매도' : '매수'}</span>
           <span>${t.qty}주 @ ${fmt(t.price)}원</span>
           <span>${t.date.slice(0,4)}.${t.date.slice(4,6)}.${t.date.slice(6,8)}</span>
         </div>`).join('');
@@ -1153,19 +1166,24 @@ function applyTrades(data) {
       rPnl.textContent = (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
       rPnl.style.color = pnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
+    const ePnl = document.getElementById('micronEvalPnl');
+    if (ePnl) {
+      ePnl.textContent = (evalPnl >= 0 ? '+' : '') + '$' + Math.abs(evalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      ePnl.style.color = evalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
+    }
     const tPnl = document.getElementById('micronTotalPnl');
     if (tPnl) {
       tPnl.textContent = (totalPnl >= 0 ? '+' : '') + '$' + Math.abs(totalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
       tPnl.style.color = totalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
 
-    // 체결내역 목록 (마이크론만)
-    const muTrades = trades.filter(t => t.symbol === 'MU').slice(0, 5);
+    // 체결내역 목록 — 색상 흰색
+    const muTrades = trades.filter(t => t.symbol === 'MU').slice(0, 10);
     const tradeDiv = document.getElementById('micronTrades');
     if (tradeDiv && muTrades.length > 0) {
       tradeDiv.innerHTML = muTrades.map(t => `
         <div class="trade-item">
-          <span class="${t.side === 'SELL' ? 'trade-side-sell' : 'trade-side-buy'}">${t.side === 'SELL' ? '매도' : '매수'}</span>
+          <span style="color:var(--text);font-weight:600;">${t.side === 'SELL' ? '매도' : '매수'}</span>
           <span>${t.qty}주 @ $${t.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
           <span>${t.date.slice(0,4)}.${t.date.slice(4,6)}.${t.date.slice(6,8)}</span>
         </div>`).join('');
