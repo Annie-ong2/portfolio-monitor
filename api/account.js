@@ -33,9 +33,10 @@ async function getToken(appKey, appSecret, cacheKey) {
 
 function parseAccount(accountNo) {
   if (!accountNo) return ['', '01'];
-  if (accountNo.includes('-')) return accountNo.split('-');
-  if (accountNo.length >= 10)  return [accountNo.slice(0, 8), accountNo.slice(8)];
-  return [accountNo, '01'];
+  const clean = accountNo.trim().replace(/-/g, '');
+  if (clean.length === 8)  return [clean, '01'];
+  if (clean.length >= 10)  return [clean.slice(0,8), clean.slice(8)];
+  return [clean, '01'];
 }
 
 // ── 국내주식 잔고 조회
