@@ -635,7 +635,7 @@
     <div class="last-update"><span class="live-dot"></span>야후 파이낸스 연동</div>
     <div class="last-update" id="updateTime" style="margin-top:3px;">업데이트 중...</div>
     <div style="margin-top:4px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
-      <span id="kisAccountBadge" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 8px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89640;">🔗 계좌 연동</span>
+      <span id="kisAccountBadge" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 8px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89640;display:none;align-items:center;gap:4px;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#00c896;animation:blink 1.5s infinite;flex-shrink:0;"></span>실시간 계좌 연결</span>
       <button class="refresh-btn" onclick="fetchAll()">↻ 새로고침</button>
     </div>
   </div>
@@ -683,7 +683,7 @@
       <div>최초 매수</div>
     </div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);text-align:right;">
-      <div style="color:var(--green);font-weight:600;">09.02</div>
+      <div style="color:var(--text);font-weight:600;">09.02</div>
       <div>3개월 목표</div>
     </div>
   </div>
@@ -708,7 +708,7 @@
         <div class="price-change down" id="samsungChange">-</div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">수익률</div>
+        <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">평가 수익률</div>
         <div class="price-change" id="samsungReturn" style="font-size:16px;">-</div>
       </div>
     </div>
@@ -811,7 +811,7 @@
         <div class="price-change down" id="micronChange">-</div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">수익률</div>
+        <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">평가 수익률</div>
         <div class="price-change" id="micronReturn" style="font-size:16px;">-</div>
       </div>
     </div>
@@ -1097,6 +1097,35 @@ async function fetchQuote(symbol, history = false) {
   }
 }
 
+// ── 총손익 배너 갱신 (실현손익 포함) — fetchAll 또는 applyTrades 후 호출
+function updateTotalBanner() {
+  const sam = samsungData;
+  const mu  = micronData;
+  const krw = krwData;
+  if (!sam || !mu || !krw) return;
+
+  // 삼성전자: 평가 + 실현
+  const samEvalPnl   = (sam.price - kisData.samsung.avgPrice) * kisData.samsung.qty;
+  const samTotalWon  = samEvalPnl + realizedPnL.samsung;
+
+  // 마이크론: 평가(USD→원) + 실현(USD→원)
+  const muEvalPnl    = (mu.price - kisData.micron.avgPrice) * kisData.micron.qty;
+  const muTotalKrw   = (muEvalPnl + realizedPnL.micron) * krw.price;
+
+  const grandTotal   = samTotalWon + muTotalKrw;
+
+  document.getElementById('totalPnl').textContent = sign(grandTotal) + fmt(Math.round(grandTotal)) + '원';
+  document.getElementById('totalPnl').className   = 'pnl-amount ' + colorClass(grandTotal);
+
+  // 개별 배너
+  document.getElementById('samsungPnl').textContent = sign(samTotalWon) + fmt(Math.round(samTotalWon)) + '원';
+  document.getElementById('samsungPnl').className   = colorClass(samTotalWon);
+
+  const muTotalUsd = muEvalPnl + realizedPnL.micron;
+  document.getElementById('micronPnl').textContent = (muTotalUsd >= 0 ? '+' : '-') + '$' + Math.abs(muTotalUsd).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('micronPnl').className   = colorClass(muTotalUsd);
+}
+
 // ── 체결내역 & 실현손익 연동 ──
 async function fetchTrades() {
   try {
@@ -1265,9 +1294,7 @@ function applyKISAccount(account) {
   // ── 계좌 연동 배지 표시
   const badge = document.getElementById('kisAccountBadge');
   if (badge && (samsung || micron)) {
-    badge.style.display = 'inline-block';
-    const connected = [samsung ? '삼성전자' : '', micron ? '마이크론' : ''].filter(Boolean).join('·');
-    badge.textContent = '🔗 ' + connected + ' 연동';
+    badge.style.display = 'inline-flex';
   }
 
   kisAccountLoaded = true;
@@ -1347,8 +1374,6 @@ async function fetchAll() {
     document.getElementById('samsung52H').textContent    = fmt(sam.high52) + '원';
     document.getElementById('samsung52L').textContent    = fmt(sam.low52) + '원';
     document.getElementById('samsungVol').textContent    = sam.volume ? fmt(sam.volume/10000, 0) + '만주' : '-';
-    document.getElementById('samsungPnl').textContent    = sign(pnl + realizedPnL.samsung) + fmt(Math.round(pnl + realizedPnL.samsung)) + '원';
-    document.getElementById('samsungPnl').className      = colorClass(pnl + realizedPnL.samsung);
 
     // 실제 종가 시간 표시 (한국 + 미국 병기)
     document.getElementById('samsungQuoteTime').textContent =
@@ -1382,9 +1407,7 @@ async function fetchAll() {
     document.getElementById('micronPnlAmt').textContent = (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     document.getElementById('micron52H').textContent    = fmtUSD(mu.high52);
     document.getElementById('micron52L').textContent    = fmtUSD(mu.low52);
-    const muTotalPnl = pnl + realizedPnL.micron;
-    document.getElementById('micronPnl').textContent    = (muTotalPnl >= 0 ? '+' : '-') + '$' + Math.abs(muTotalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-    document.getElementById('micronPnl').className      = colorClass(muTotalPnl);
+    updateTotalBanner();
 
     // 실제 종가 시간 표시
     document.getElementById('micronQuoteTime').textContent =
@@ -1407,14 +1430,7 @@ async function fetchAll() {
 
   // ── 총 손익 원화 환산 ──
   if (sam && mu && krw) {
-    const samEvalPnl  = (sam.price - kisData.samsung.avgPrice) * kisData.samsung.qty;
-    const muEvalPnl   = (mu.price  - kisData.micron.avgPrice)  * kisData.micron.qty;
-    const muEvalKrw   = muEvalPnl * krw.price;
-    const muRealKrw   = realizedPnL.micron * krw.price;
-    const samRealKrw  = realizedPnL.samsung;
-    const total = samEvalPnl + muEvalKrw + samRealKrw + muRealKrw;
-    document.getElementById('totalPnl').textContent  = sign(total) + fmt(Math.round(total)) + '원';
-    document.getElementById('totalPnl').className    = 'pnl-amount ' + colorClass(total);
+    updateTotalBanner();
   }
 
   // ── 매크로 ──
