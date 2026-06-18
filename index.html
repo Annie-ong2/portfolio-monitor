@@ -1106,7 +1106,7 @@ function applyTrades(data) {
 
   // ── 삼성전자 실현손익
   const sam = realized.samsung;
-  if (sam && sam.soldQty > 0) {
+  if (sam) {
     const pnl      = sam.realizedPnL;
     const evalPnl  = samsungData ? (samsungData.price - kisData.samsung.avgPrice) * kisData.samsung.qty : 0;
     const totalPnl = pnl + evalPnl;
@@ -1140,7 +1140,7 @@ function applyTrades(data) {
 
   // ── 마이크론 실현손익
   const mu = realized.micron;
-  if (mu && mu.soldQty > 0) {
+  if (mu) {
     const pnl     = mu.realizedPnL;
     const evalPnl = micronData ? (micronData.price - kisData.micron.avgPrice) * kisData.micron.qty : 0;
     const totalPnl = pnl + evalPnl;
