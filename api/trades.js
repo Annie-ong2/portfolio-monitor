@@ -56,10 +56,10 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
       ACNT_PRDT_CD:     acctSuffix || '01',
       INQR_STRT_DT:    START_DATE,
       INQR_END_DT:     todayStr(),
-      SLL_BUY_DVSN_CD: '00',   // 00:전체, 01:매도, 02:매수
-      INQR_DVSN:       '00',   // 00:역순
+      SLL_BUY_DVSN_CD: '00',
+      INQR_DVSN:       '00',
       PDNO:            '',
-      CCLD_DVSN:       '01',   // 01:체결, 02:미체결
+      CCLD_DVSN:       '01',
       ORD_GNO_BRNO:    '',
       ODNO:            '',
       INQR_DVSN_3:     '00',
@@ -83,7 +83,7 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
 
     const data = await res.json();
     if (data.rt_cd !== '0') {
-      errors.push(`TTTC8001R: ${data.msg1}`);
+      errors.push(`TTTC8001R: ${data.msg1} (acctNum:${acctNum} acctSuffix:${acctSuffix})`);
       break;
     }
 
@@ -135,12 +135,13 @@ async function getOverseasTrades(token, appKey, appSecret, accountNo) {
         CANO:             acctNum,
         ACNT_PRDT_CD:     acctSuffix || '01',
         PDNO:             '',
-        INQR_STRT_DT:    START_DATE,   // 공식 필드명: INQR_STRT_DT
-        INQR_END_DT:     today,        // 공식 필드명: INQR_END_DT
+        INQR_STRT_DT:    START_DATE,
+        INQR_END_DT:     today,
         SLL_BUY_DVSN_CD: '00',
-        CCLD_NCCS_DVSN:  '01',        // 01:체결
+        CCLD_NCCS_DVSN:  '01',
         OVRS_EXCG_CD:    excd,
         SORT_SQN:        'DS',
+        PRDT_TYPE_CD:    '512',   // 미국주식 상품유형코드
         CTX_AREA_FK200:   ctxFk,
         CTX_AREA_NK200:   ctxNk,
       });
