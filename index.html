@@ -644,7 +644,7 @@
 <!-- 총 손익 배너 -->
 <div class="pnl-banner">
   <div>
-    <div class="pnl-label">총 평가손익 (원화 환산)</div>
+    <div class="pnl-label">총 손익 (평가+실현, 원화 환산)</div>
     <div class="pnl-amount down" id="totalPnl">계산 중...</div>
   </div>
   <div class="pnl-items">
@@ -1115,6 +1115,7 @@ function applyTrades(data) {
   // ── 삼성전자 실현손익
   const sam = realized.samsung;
   if (sam) {
+    realizedPnL.samsung = sam.realizedPnL || 0;  // 전역 업데이트
     const pnl      = sam.realizedPnL;
     const evalPnl  = samsungData ? (samsungData.price - kisData.samsung.avgPrice) * kisData.samsung.qty : 0;
     const totalPnl = pnl + evalPnl;
@@ -1154,6 +1155,7 @@ function applyTrades(data) {
   // ── 마이크론 실현손익
   const mu = realized.micron;
   if (mu) {
+    realizedPnL.micron = mu.realizedPnL || 0;  // 전역 업데이트
     const pnl     = mu.realizedPnL;
     const evalPnl = micronData ? (micronData.price - kisData.micron.avgPrice) * kisData.micron.qty : 0;
     const totalPnl = pnl + evalPnl;
@@ -1196,8 +1198,14 @@ let kisAccountLoaded = false;
 
 // 전역 보유 데이터 (fetchAll에서 손익 계산에 사용)
 let kisData = {
-  samsung: { qty: 70, avgPrice: 349500 },   // 기본값 (연동 전)
-  micron:  { qty: 30, avgPrice: 1040.60 },
+  samsung: { qty: 70, avgPrice: 349500 },
+  micron:  { qty: 20, avgPrice: 1040.60 },  // 실제 보유 20주 (10주 익절 후)
+};
+
+// 실현손익 전역 저장 (applyTrades에서 업데이트, fetchAll에서 총손익 계산에 사용)
+let realizedPnL = {
+  samsung: 0,   // 원화
+  micron:  0,   // USD
 };
 
 async function fetchKISAccount() {
@@ -1339,8 +1347,8 @@ async function fetchAll() {
     document.getElementById('samsung52H').textContent    = fmt(sam.high52) + '원';
     document.getElementById('samsung52L').textContent    = fmt(sam.low52) + '원';
     document.getElementById('samsungVol').textContent    = sam.volume ? fmt(sam.volume/10000, 0) + '만주' : '-';
-    document.getElementById('samsungPnl').textContent    = sign(pnl) + fmt(pnl) + '원';
-    document.getElementById('samsungPnl').className      = colorClass(pnl);
+    document.getElementById('samsungPnl').textContent    = sign(pnl + realizedPnL.samsung) + fmt(Math.round(pnl + realizedPnL.samsung)) + '원';
+    document.getElementById('samsungPnl').className      = colorClass(pnl + realizedPnL.samsung);
 
     // 실제 종가 시간 표시 (한국 + 미국 병기)
     document.getElementById('samsungQuoteTime').textContent =
@@ -1374,8 +1382,9 @@ async function fetchAll() {
     document.getElementById('micronPnlAmt').textContent = (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     document.getElementById('micron52H').textContent    = fmtUSD(mu.high52);
     document.getElementById('micron52L').textContent    = fmtUSD(mu.low52);
-    document.getElementById('micronPnl').textContent    = (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-    document.getElementById('micronPnl').className      = colorClass(pnl);
+    const muTotalPnl = pnl + realizedPnL.micron;
+    document.getElementById('micronPnl').textContent    = (muTotalPnl >= 0 ? '+' : '-') + '$' + Math.abs(muTotalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('micronPnl').className      = colorClass(muTotalPnl);
 
     // 실제 종가 시간 표시
     document.getElementById('micronQuoteTime').textContent =
@@ -1398,9 +1407,12 @@ async function fetchAll() {
 
   // ── 총 손익 원화 환산 ──
   if (sam && mu && krw) {
-    const samPnl    = (sam.price - kisData.samsung.avgPrice) * kisData.samsung.qty;
-    const muPnlKrw  = (mu.price  - kisData.micron.avgPrice)  * kisData.micron.qty * krw.price;
-    const total = samPnl + muPnlKrw;
+    const samEvalPnl  = (sam.price - kisData.samsung.avgPrice) * kisData.samsung.qty;
+    const muEvalPnl   = (mu.price  - kisData.micron.avgPrice)  * kisData.micron.qty;
+    const muEvalKrw   = muEvalPnl * krw.price;
+    const muRealKrw   = realizedPnL.micron * krw.price;
+    const samRealKrw  = realizedPnL.samsung;
+    const total = samEvalPnl + muEvalKrw + samRealKrw + muRealKrw;
     document.getElementById('totalPnl').textContent  = sign(total) + fmt(Math.round(total)) + '원';
     document.getElementById('totalPnl').className    = 'pnl-amount ' + colorClass(total);
   }
