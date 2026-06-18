@@ -1,9 +1,12 @@
 // 한국투자증권 체결내역 + 실현손익
-// 실현손익: KIS 기간별손익 API (TTTC8715R 국내 / TTTS3250R 해외)
+// 삼성전자: TTTC8715R 기간별 실현손익 API (sll_qty>0 체크)
+// 마이크론: PRIOR_TRADES 기반 폴백 (TTTS3250R 빈응답으로 사용불가)
+// 당일 체결: 국내/해외 당일 API 실시간 반영
 
 const KIS_BASE   = 'https://openapi.koreainvestment.com:9443';
 const START_DATE = '20260602';
 
+// 기존 체결내역 (표시용 + 마이크론 실현손익 계산용)
 const PRIOR_TRADES = [
   { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260602', side:'BUY',  qty:20, price:1040.5953 },
   { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260604', side:'BUY',  qty:10, price:1040.5953 },
@@ -11,7 +14,7 @@ const PRIOR_TRADES = [
   { market:'KR', symbol:'005930', name:'삼성전자',        date:'20260604', side:'BUY',  qty:70, price:349500    },
 ];
 
-const _cache = { 1: { token:null, expiry:0 }, 2: { token:null, expiry:0 } };
+const _cache = { 1:{token:null,expiry:0}, 2:{token:null,expiry:0} };
 
 async function getToken(appKey, appSecret, cacheKey) {
   const now = Date.now(), cache = _cache[cacheKey];
@@ -41,6 +44,7 @@ function todayStr() {
 }
 
 // ── 국내주식 기간별 실현손익 (TTTC8715R)
+// sll_qty > 0 인 경우만 실현손익 인정 (수수료만 있는 경우 제외)
 async function getDomesticRealizedPnL(token, appKey, appSecret, accountNo) {
   const [acctNum, acctSuffix] = parseAccount(accountNo);
   const params = new URLSearchParams({
@@ -58,66 +62,28 @@ async function getDomesticRealizedPnL(token, appKey, appSecret, accountNo) {
   });
   const text = await res.text();
   let data;
-  try { data = JSON.parse(text); } catch(e) { return { pnl:0, trades:[], error:`JSON파싱오류: ${text.slice(0,100)}` }; }
-  if (data.rt_cd !== '0') return { pnl:0, trades:[], error:`TTTC8715R: ${data.msg1}` };
+  try { data = JSON.parse(text); }
+  catch(e) { return { pnl:0, error:`JSON파싱오류: ${text.slice(0,80)}` }; }
+  if (data.rt_cd !== '0') return { pnl:0, error:`TTTC8715R: ${data.msg1}` };
 
-  // output1: 종목별 / output2: 합계
-  // 실현손익 합계는 output2에서 가져오거나 output1 합산
   const items = data.output1 || [];
-  const samsung = items.find(t => t.pdno === '005930');
-
-  // 디버그: 실제 응답 필드 확인용
-  const debugFields = samsung ? Object.keys(samsung) : [];
-  // 가능한 실현손익 필드명: rlzt_pfls, real_pfls, pfls_amt, sell_pfls
-  const pnl = samsung
-    ? parseFloat(samsung.rlzt_pfls || samsung.pfls_amt || samsung.sell_pfls || 0)
-    : 0;
-
-  return {
-    pnl,
-    trades: [],
-    error: null,
-    debug: { samsungFields: debugFields, samsungRaw: samsung || null },
-  };
+  let totalPnL = 0;
+  items.forEach(t => {
+    if (t.pdno === '005930' && parseInt(t.sll_qty || 0) > 0) {
+      totalPnL += parseFloat(t.rlzt_pfls || 0);
+    }
+  });
+  return { pnl: totalPnL, error: null };
 }
 
-// ── 해외주식 기간별 실현손익 (TTTS3250R)
-async function getOverseasRealizedPnL(token, appKey, appSecret, accountNo) {
-  const [acctNum, acctSuffix] = parseAccount(accountNo);
-  const params = new URLSearchParams({
-    CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
-    INQR_STRT_DT: START_DATE, INQR_END_DT: todayStr(),
-    WCRC_FRCR_DVSN_CD: '02', // USD
-    NATN_CD:  '840',          // 미국
-    TR_MKET_CD: '00',         // 전체
-    INQR_DVSN_CD: '00',
-    CTX_AREA_FK200: '', CTX_AREA_NK200: '',
-  });
-  const res  = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-period-trade-profit?${params}`, {
-    headers: {
-      'Content-Type':'application/json', 'authorization':`Bearer ${token}`,
-      'appkey':appKey, 'appsecret':appSecret, 'tr_id':'TTTS3250R', 'custtype':'P',
-    },
-  });
-  // text로 먼저 받아서 파싱 오류 방지
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch(e) { return { pnl:0, trades:[], error:`JSON파싱오류: ${text.slice(0,100)}` }; }
-  if (data.rt_cd !== '0') return { pnl:0, trades:[], error:`TTTS3250R: ${data.msg1}` };
-
-  const items = data.output1 || [];
-  const micron = items.find(t => t.pdno === 'MU');
-  const debugFields = micron ? Object.keys(micron) : [];
-  const pnl = micron
-    ? parseFloat(micron.rlzt_pfls || micron.pfls_amt || micron.frcr_rlzt_pfls || 0)
-    : 0;
-
-  return {
-    pnl,
-    trades: [],
-    error: null,
-    debug: { micronFields: debugFields, micronRaw: micron || null },
-  };
+// ── 마이크론 실현손익: PRIOR_TRADES 기반 계산
+// (TTTS3250R API 빈응답으로 사용불가 → 당일 매도는 oTodayTrades로 추가 반영)
+function calcMicronRealizedPnL(todayTrades) {
+  const allSells = [
+    ...PRIOR_TRADES.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
+    ...todayTrades.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
+  ];
+  return allSells.reduce((sum, t) => sum + (t.price - 1040.5953) * t.qty, 0);
 }
 
 // ── 당일 국내주식 체결내역
@@ -180,11 +146,6 @@ async function getOverseasTodayTrades(token, appKey, appSecret, accountNo) {
   return trades;
 }
 
-function calcFallback(trades, symbol, avgBuyPrice) {
-  return trades.filter(t=>t.symbol===symbol&&t.side==='SELL')
-    .reduce((sum,t)=>sum+(t.price-avgBuyPrice)*t.qty, 0);
-}
-
 function mergeTrades(trades) {
   const seen = new Set();
   return trades.filter(t=>{
@@ -210,21 +171,23 @@ export default async function handler(req, res) {
     const token1 = t1.status==='fulfilled' ? t1.value : null;
     const token2 = t2.status==='fulfilled' ? t2.value : null;
 
-    const [oRzdR, dRzdR, oTodayR, dTodayR] = await Promise.allSettled([
-      token1 ? getOverseasRealizedPnL(token1, acc1.key, acc1.secret, acc1.account) : Promise.resolve({pnl:0,trades:[],error:'토큰없음'}),
-      token2 && acc2.account ? getDomesticRealizedPnL(token2, acc2.key, acc2.secret, acc2.account) : Promise.resolve({pnl:0,trades:[],error:'토큰없음'}),
+    const [dRzdR, oTodayR, dTodayR] = await Promise.allSettled([
+      token2 && acc2.account
+        ? getDomesticRealizedPnL(token2, acc2.key, acc2.secret, acc2.account)
+        : Promise.resolve({ pnl:0, error:'토큰없음' }),
       token1 ? getOverseasTodayTrades(token1, acc1.key, acc1.secret, acc1.account) : Promise.resolve([]),
       token2 && acc2.account ? getDomesticTodayTrades(token2, acc2.key, acc2.secret, acc2.account) : Promise.resolve([]),
     ]);
 
-    const oRzd   = oRzdR.status==='fulfilled' ? oRzdR.value : {pnl:0,error:oRzdR.reason?.message};
-    const dRzd   = dRzdR.status==='fulfilled' ? dRzdR.value : {pnl:0,error:dRzdR.reason?.message};
-    const oToday = oTodayR.status==='fulfilled' ? oTodayR.value : [];
-    const dToday = dTodayR.status==='fulfilled' ? dTodayR.value : [];
+    const dRzd   = dRzdR.status==='fulfilled'   ? dRzdR.value   : { pnl:0, error:dRzdR.reason?.message };
+    const oToday = oTodayR.status==='fulfilled'  ? oTodayR.value : [];
+    const dToday = dTodayR.status==='fulfilled'  ? dTodayR.value : [];
 
-    // 실현손익: API 우선, 오류 시 PRIOR_TRADES 폴백
-    const micronPnL  = oRzd.error ? calcFallback(PRIOR_TRADES.filter(t=>t.market==='US'),'MU',1040.5953) : oRzd.pnl;
-    const samsungPnL = dRzd.error ? calcFallback(PRIOR_TRADES.filter(t=>t.market==='KR'),'005930',349500) : dRzd.pnl;
+    // 삼성전자: API 실현손익 (오류 시 0)
+    const samsungPnL = dRzd.error ? 0 : dRzd.pnl;
+
+    // 마이크론: PRIOR_TRADES + 당일 매도 합산
+    const micronPnL = calcMicronRealizedPnL(oToday);
 
     const allOTrades = mergeTrades([...PRIOR_TRADES.filter(t=>t.market==='US'), ...oToday]);
     const allDTrades = mergeTrades([...PRIOR_TRADES.filter(t=>t.market==='KR'), ...dToday]);
@@ -232,14 +195,11 @@ export default async function handler(req, res) {
     return res.status(200).json({
       trades: [...allDTrades, ...allOTrades],
       realized: {
-        samsung: { realizedPnL: samsungPnL, source: dRzd.error ? 'fallback' : 'api' },
-        micron:  { realizedPnL: micronPnL,  source: oRzd.error ? 'fallback' : 'api' },
+        samsung: { realizedPnL: samsungPnL, source: dRzd.error ? 'none' : 'api' },
+        micron:  { realizedPnL: micronPnL,  source: oToday.some(t=>t.symbol==='MU'&&t.side==='SELL') ? 'api+prior' : 'prior' },
       },
       debug: {
-        oRzdError:  oRzd.error  || null,
-        dRzdError:  dRzd.error  || null,
-        dRzdDebug:  dRzd.debug  || null,  // 삼성전자 응답 필드명 확인용
-        oRzdDebug:  oRzd.debug  || null,  // 마이크론 응답 필드명 확인용
+        dRzdError:   dRzd.error  || null,
         oTodayCount: oToday.length,
         dTodayCount: dToday.length,
       },
