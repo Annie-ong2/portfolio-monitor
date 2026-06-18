@@ -1,5 +1,6 @@
 // 한국투자증권 체결내역 + 실현손익
-const KIS_BASE   = 'https://openapi.koreainvestment.com:9443';
+// 해외: TTTS3035R(당일) → FHKST03030200(기간별) 시도
+const KIS_BASE = 'https://openapi.koreainvestment.com:9443';
 const START_DATE = '20260602';
 
 const _cache = {
@@ -36,7 +37,7 @@ function todayStr() {
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 }
 
-// ── 국내주식 체결내역 — POST, tr_id 3가지 순서대로 시도
+// ── 국내주식 체결내역 — POST
 async function getDomesticTrades(token, appKey, appSecret, accountNo) {
   const [acctNum, acctSuffix] = parseAccount(accountNo);
   const errors = [];
@@ -56,7 +57,7 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
         CTX_AREA_FK100: ctxFk, CTX_AREA_NK100: ctxNk,
       };
 
-      const res  = await fetch(`${KIS_BASE}/uapi/domestic-stock/v1/trading/inquire-daily-ccld`, {
+      const res = await fetch(`${KIS_BASE}/uapi/domestic-stock/v1/trading/inquire-daily-ccld`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
@@ -66,13 +67,10 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
       });
       const data = await res.json();
 
-      if (data.rt_cd !== '0') {
-        errors.push(`${trId}: ${data.msg1}`);
-        break;
-      }
+      if (data.rt_cd !== '0') { errors.push(`${trId}: ${data.msg1}`); break; }
 
       success = true;
-      if (page === 0) errors.push(`${trId} 성공 output1_length:${(data.output1||[]).length}`);
+      if (page === 0) errors.push(`${trId} 성공 length:${(data.output1||[]).length}`);
 
       (data.output1 || []).forEach(t => {
         const qty = parseInt(t.tot_ccld_qty || 0);
@@ -81,76 +79,99 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
           market: 'KR', symbol: t.pdno, name: t.prdt_name,
           date: t.ord_dt, side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
           qty, price: parseFloat(t.avg_prvs || 0), amount: parseFloat(t.tot_ccld_amt || 0),
-          raw_dvsn: t.sll_buy_dvsn_cd,
         });
       });
 
       if (data.tr_cont === 'D' || data.tr_cont === 'E' || !data.tr_cont) break;
-      ctxFk = data.ctx_area_fk100 || '';
-      ctxNk = data.ctx_area_nk100 || '';
+      ctxFk = data.ctx_area_fk100 || ''; ctxNk = data.ctx_area_nk100 || '';
       if (!ctxFk && !ctxNk) break;
     }
-
     if (success) return { trades, errors };
   }
   return { trades: [], errors };
 }
 
-// ── 해외주식 체결내역 — GET, TTTS3035R
+// ── 해외주식 체결내역
+// TTTS3035R: 당일 체결내역
+// FHKST03030200: 기간별 체결내역 (해외주식 주문체결현황조회)
 async function getOverseasTrades(token, appKey, appSecret, accountNo) {
   const [acctNum, acctSuffix] = parseAccount(accountNo);
   const trades = [];
   const errors = [];
   const today  = todayStr();
 
+  // 방법 1: FHKST03030200 기간별 체결내역
   for (const excd of ['NASD', 'NYSE', 'AMEX']) {
-    if (excd !== 'NASD') await new Promise(r => setTimeout(r, 500));
-    let ctxFk = '', ctxNk = '';
-
-    for (let page = 0; page < 5; page++) {
+    if (excd !== 'NASD') await new Promise(r => setTimeout(r, 400));
+    try {
       const params = new URLSearchParams({
         CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
-        PDNO: '', INQR_STRT_DT: START_DATE, INQR_END_DT: today,
-        SLL_BUY_DVSN_CD: '00', CCLD_NCCS_DVSN: '00',
-        OVRS_EXCG_CD: excd, SORT_SQN: 'DS',
-        CTX_AREA_FK200: ctxFk, CTX_AREA_NK200: ctxNk,
+        INQR_STRT_DT: START_DATE, INQR_END_DT: today,
+        SLL_BUY_DVSN_CD: '00',
+        OVRS_EXCG_CD: excd,
+        PDNO: '',
+        ORD_STFNO: '',
+        CTX_AREA_FK200: '', CTX_AREA_NK200: '',
       });
 
-      const res  = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-ccnl?${params}`, {
+      const res = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-ccnl?${params}`, {
         headers: {
           'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
-          'appkey': appKey, 'appsecret': appSecret, 'tr_id': 'TTTS3035R', 'custtype': 'P',
+          'appkey': appKey, 'appsecret': appSecret,
+          'tr_id': 'FHKST03030200', 'custtype': 'P',
         },
       });
       const data = await res.json();
 
-      if (data.rt_cd !== '0') {
-        errors.push(`${excd}: ${data.msg1}`);
-        break;
-      }
-
-      const output = data.output1 || data.output || [];
-      if (page === 0) {
-        const firstKeys = output[0] ? Object.keys(output[0]).slice(0,10).join(',') : 'empty';
-        errors.push(`${excd} 성공 length:${output.length} keys:${firstKeys}`);
-      }
-
-      output.forEach(t => {
-        const qty = parseFloat(t.ft_ccld_qty || 0);
-        if (!t.pdno || qty === 0) return;
-        trades.push({
-          market: 'US', exchange: excd, symbol: t.pdno, name: t.prdt_name || '',
-          date: t.ord_dt || '', side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
-          qty, price: parseFloat(t.ft_ccld_unpr3 || 0), amount: parseFloat(t.ft_ccld_amt3 || 0),
-          raw_dvsn: t.sll_buy_dvsn_cd,
+      if (data.rt_cd === '0') {
+        const output = data.output1 || data.output || [];
+        errors.push(`FHKST03030200/${excd} length:${output.length} keys:${output[0] ? Object.keys(output[0]).slice(0,6).join(',') : 'empty'}`);
+        output.forEach(t => {
+          const qty = parseFloat(t.ft_ccld_qty || t.slcl_qty || 0);
+          if (!t.pdno || qty === 0) return;
+          trades.push({
+            market: 'US', exchange: excd, symbol: t.pdno, name: t.prdt_name || '',
+            date: t.ord_dt || t.ccld_dt || '',
+            side: (t.sll_buy_dvsn_cd || t.sll_buy_dvsn || '') === '01' ? 'SELL' : 'BUY',
+            qty, price: parseFloat(t.ft_ccld_unpr3 || t.ovrs_ccld_unpr || 0),
+            amount: parseFloat(t.ft_ccld_amt3 || 0),
+          });
         });
-      });
+      } else {
+        errors.push(`FHKST03030200/${excd}: ${data.msg1}`);
 
-      if (data.tr_cont === 'D' || data.tr_cont === 'E' || !data.tr_cont) break;
-      ctxFk = data.ctx_area_fk200 || '';
-      ctxNk = data.ctx_area_nk200 || '';
-      if (!ctxFk && !ctxNk) break;
-    }
+        // 방법 2: TTTS3035R 당일 체결 시도
+        await new Promise(r => setTimeout(r, 300));
+        const params2 = new URLSearchParams({
+          CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
+          PDNO: '', INQR_STRT_DT: START_DATE, INQR_END_DT: today,
+          SLL_BUY_DVSN_CD: '00', CCLD_NCCS_DVSN: '00',
+          OVRS_EXCG_CD: excd, SORT_SQN: 'DS',
+          CTX_AREA_FK200: '', CTX_AREA_NK200: '',
+        });
+        const res2 = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-ccnl?${params2}`, {
+          headers: {
+            'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
+            'appkey': appKey, 'appsecret': appSecret,
+            'tr_id': 'TTTS3035R', 'custtype': 'P',
+          },
+        });
+        const data2 = await res2.json();
+        const output2 = data2.output1 || data2.output || [];
+        errors.push(`TTTS3035R/${excd} rt:${data2.rt_cd} length:${output2.length}`);
+        if (data2.rt_cd === '0') {
+          output2.forEach(t => {
+            const qty = parseFloat(t.ft_ccld_qty || 0);
+            if (!t.pdno || qty === 0) return;
+            trades.push({
+              market: 'US', exchange: excd, symbol: t.pdno, name: t.prdt_name || '',
+              date: t.ord_dt || '', side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
+              qty, price: parseFloat(t.ft_ccld_unpr3 || 0), amount: parseFloat(t.ft_ccld_amt3 || 0),
+            });
+          });
+        }
+      }
+    } catch(e) { errors.push(`${excd}: ${e.message}`); }
   }
   return { trades, errors };
 }
@@ -192,7 +213,7 @@ export default async function handler(req, res) {
       trades:   [...dTrades, ...oTrades],
       realized: {
         samsung: calcRealizedPnL(dTrades, '005930', 349500),
-        micron:  calcRealizedPnL(oTrades, 'MU',     1040.5953),
+        micron:  calcRealizedPnL(oTrades, 'MU', 1040.5953),
       },
       debug: {
         muTrades:      oTrades.filter(t => t.symbol === 'MU'),
