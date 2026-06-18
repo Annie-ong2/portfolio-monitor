@@ -1,7 +1,20 @@
 // 한국투자증권 체결내역 + 실현손익
-// 해외: TTTS3035R(당일) → FHKST03030200(기간별) 시도
-const KIS_BASE = 'https://openapi.koreainvestment.com:9443';
-const START_DATE = '20260602';
+// 기존 체결내역(API 신청 이전)은 하드코딩, 이후 발생분은 API 실시간 조회 후 합산
+
+const KIS_BASE   = 'https://openapi.koreainvestment.com:9443';
+const API_START  = '20260618'; // APP KEY 발급일 — 이후 체결만 API로 조회
+
+// ── 하드코딩된 기존 체결내역 (APP KEY 발급 이전 거래)
+const PRIOR_TRADES = [
+  // 마이크론 매수 (2026.06.02)
+  { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260602', side:'BUY',  qty:20, price:1040.5953 },
+  // 마이크론 매수 추가 (2026.06.04)
+  { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260604', side:'BUY',  qty:10, price:1040.5953 },
+  // 마이크론 1차 익절 (2026.06.16)
+  { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260616', side:'SELL', qty:10, price:1100.01 },
+  // 삼성전자 매수 (2026.06.04)
+  { market:'KR', symbol:'005930', name:'삼성전자', date:'20260604', side:'BUY', qty:70, price:349500 },
+];
 
 const _cache = {
   1: { token: null, expiry: 0 },
@@ -18,7 +31,7 @@ async function getToken(appKey, appSecret, cacheKey) {
     body: JSON.stringify({ grant_type: 'client_credentials', appkey: appKey, appsecret: appSecret }),
   });
   const data = await res.json();
-  if (!data.access_token) throw new Error('토큰 발급 실패: ' + JSON.stringify(data));
+  if (!data.access_token) throw new Error('토큰 발급 실패');
   cache.token  = data.access_token;
   cache.expiry = now + (data.expires_in ? data.expires_in * 1000 : 86400 * 1000);
   return cache.token;
@@ -37,7 +50,7 @@ function todayStr() {
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 }
 
-// ── 국내주식 체결내역 — POST
+// ── 국내주식 체결내역 (API_START 이후)
 async function getDomesticTrades(token, appKey, appSecret, accountNo) {
   const [acctNum, acctSuffix] = parseAccount(accountNo);
   const errors = [];
@@ -50,7 +63,7 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
     for (let page = 0; page < 5; page++) {
       const body = {
         CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
-        INQR_STRT_DT: START_DATE, INQR_END_DT: todayStr(),
+        INQR_STRT_DT: API_START, INQR_END_DT: todayStr(),
         SLL_BUY_DVSN_CD: '00', INQR_DVSN: '00', PDNO: '',
         CCLD_DVSN: '01', ORD_GNO_BRNO: '', ODNO: '',
         INQR_DVSN_3: '00', INQR_DVSN_1: '',
@@ -70,15 +83,15 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
       if (data.rt_cd !== '0') { errors.push(`${trId}: ${data.msg1}`); break; }
 
       success = true;
-      if (page === 0) errors.push(`${trId} 성공 length:${(data.output1||[]).length}`);
-
       (data.output1 || []).forEach(t => {
         const qty = parseInt(t.tot_ccld_qty || 0);
         if (!t.pdno || qty === 0) return;
         trades.push({
           market: 'KR', symbol: t.pdno, name: t.prdt_name,
           date: t.ord_dt, side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
-          qty, price: parseFloat(t.avg_prvs || 0), amount: parseFloat(t.tot_ccld_amt || 0),
+          qty, price: parseFloat(t.avg_prvs || 0),
+          amount: parseFloat(t.tot_ccld_amt || 0),
+          source: 'api',
         });
       });
 
@@ -91,95 +104,58 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
   return { trades: [], errors };
 }
 
-// ── 해외주식 체결내역
-// TTTS3035R: 당일 체결내역
-// FHKST03030200: 기간별 체결내역 (해외주식 주문체결현황조회)
+// ── 해외주식 체결내역 (API_START 이후)
 async function getOverseasTrades(token, appKey, appSecret, accountNo) {
   const [acctNum, acctSuffix] = parseAccount(accountNo);
   const trades = [];
   const errors = [];
   const today  = todayStr();
 
-  // 방법 1: FHKST03030200 기간별 체결내역
   for (const excd of ['NASD', 'NYSE', 'AMEX']) {
     if (excd !== 'NASD') await new Promise(r => setTimeout(r, 400));
     try {
       const params = new URLSearchParams({
         CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
-        INQR_STRT_DT: START_DATE, INQR_END_DT: today,
-        SLL_BUY_DVSN_CD: '00',
-        OVRS_EXCG_CD: excd,
-        PDNO: '',
-        ORD_STFNO: '',
+        PDNO: '', INQR_STRT_DT: API_START, INQR_END_DT: today,
+        SLL_BUY_DVSN_CD: '00', CCLD_NCCS_DVSN: '00',
+        OVRS_EXCG_CD: excd, SORT_SQN: 'DS',
         CTX_AREA_FK200: '', CTX_AREA_NK200: '',
       });
 
       const res = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-ccnl?${params}`, {
         headers: {
           'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
-          'appkey': appKey, 'appsecret': appSecret,
-          'tr_id': 'FHKST03030200', 'custtype': 'P',
+          'appkey': appKey, 'appsecret': appSecret, 'tr_id': 'TTTS3035R', 'custtype': 'P',
         },
       });
       const data = await res.json();
+      if (data.rt_cd !== '0') { errors.push(`${excd}: ${data.msg1}`); continue; }
 
-      if (data.rt_cd === '0') {
-        const output = data.output1 || data.output || [];
-        errors.push(`FHKST03030200/${excd} length:${output.length} keys:${output[0] ? Object.keys(output[0]).slice(0,6).join(',') : 'empty'}`);
-        output.forEach(t => {
-          const qty = parseFloat(t.ft_ccld_qty || t.slcl_qty || 0);
-          if (!t.pdno || qty === 0) return;
-          trades.push({
-            market: 'US', exchange: excd, symbol: t.pdno, name: t.prdt_name || '',
-            date: t.ord_dt || t.ccld_dt || '',
-            side: (t.sll_buy_dvsn_cd || t.sll_buy_dvsn || '') === '01' ? 'SELL' : 'BUY',
-            qty, price: parseFloat(t.ft_ccld_unpr3 || t.ovrs_ccld_unpr || 0),
-            amount: parseFloat(t.ft_ccld_amt3 || 0),
-          });
+      const output = data.output1 || data.output || [];
+      output.forEach(t => {
+        const qty = parseFloat(t.ft_ccld_qty || 0);
+        if (!t.pdno || qty === 0) return;
+        trades.push({
+          market: 'US', exchange: excd, symbol: t.pdno, name: t.prdt_name || '',
+          date: t.ord_dt || '', side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
+          qty, price: parseFloat(t.ft_ccld_unpr3 || 0),
+          amount: parseFloat(t.ft_ccld_amt3 || 0),
+          source: 'api',
         });
-      } else {
-        errors.push(`FHKST03030200/${excd}: ${data.msg1}`);
-
-        // 방법 2: TTTS3035R 당일 체결 시도
-        await new Promise(r => setTimeout(r, 300));
-        const params2 = new URLSearchParams({
-          CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
-          PDNO: '', INQR_STRT_DT: START_DATE, INQR_END_DT: today,
-          SLL_BUY_DVSN_CD: '00', CCLD_NCCS_DVSN: '00',
-          OVRS_EXCG_CD: excd, SORT_SQN: 'DS',
-          CTX_AREA_FK200: '', CTX_AREA_NK200: '',
-        });
-        const res2 = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-ccnl?${params2}`, {
-          headers: {
-            'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
-            'appkey': appKey, 'appsecret': appSecret,
-            'tr_id': 'TTTS3035R', 'custtype': 'P',
-          },
-        });
-        const data2 = await res2.json();
-        const output2 = data2.output1 || data2.output || [];
-        errors.push(`TTTS3035R/${excd} rt:${data2.rt_cd} length:${output2.length}`);
-        if (data2.rt_cd === '0') {
-          output2.forEach(t => {
-            const qty = parseFloat(t.ft_ccld_qty || 0);
-            if (!t.pdno || qty === 0) return;
-            trades.push({
-              market: 'US', exchange: excd, symbol: t.pdno, name: t.prdt_name || '',
-              date: t.ord_dt || '', side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
-              qty, price: parseFloat(t.ft_ccld_unpr3 || 0), amount: parseFloat(t.ft_ccld_amt3 || 0),
-            });
-          });
-        }
-      }
+      });
     } catch(e) { errors.push(`${excd}: ${e.message}`); }
   }
   return { trades, errors };
 }
 
-function calcRealizedPnL(trades, symbol, avgBuyPrice) {
-  const sells = trades.filter(t => t.symbol === symbol && t.side === 'SELL');
+// ── 실현손익 계산 (하드코딩 + API 합산)
+function calcRealizedPnL(allTrades, symbol, avgBuyPrice) {
+  const sells = allTrades.filter(t => t.symbol === symbol && t.side === 'SELL');
   let realizedPnL = 0, soldQty = 0;
-  sells.forEach(t => { realizedPnL += (t.price - avgBuyPrice) * t.qty; soldQty += t.qty; });
+  sells.forEach(t => {
+    realizedPnL += (t.price - avgBuyPrice) * t.qty;
+    soldQty += t.qty;
+  });
   return { realizedPnL, soldQty };
 }
 
@@ -199,26 +175,35 @@ export default async function handler(req, res) {
     const token1 = t1.status === 'fulfilled' ? t1.value : null;
     const token2 = t2.status === 'fulfilled' ? t2.value : null;
 
+    // API로 신규 체결내역 조회
     const [oResult, dResult] = await Promise.allSettled([
       token1 ? getOverseasTrades(token1, acc1.key, acc1.secret, acc1.account) : Promise.resolve({ trades:[], errors:[] }),
       token2 && acc2.account ? getDomesticTrades(token2, acc2.key, acc2.secret, acc2.account) : Promise.resolve({ trades:[], errors:[] }),
     ]);
 
-    const oTrades = oResult.status === 'fulfilled' ? oResult.value.trades : [];
-    const dTrades = dResult.status === 'fulfilled' ? dResult.value.trades : [];
-    const oErrors = oResult.status === 'fulfilled' ? oResult.value.errors : [oResult.reason?.message];
-    const dErrors = dResult.status === 'fulfilled' ? dResult.value.errors : [dResult.reason?.message];
+    const apiOTrades = oResult.status === 'fulfilled' ? oResult.value.trades : [];
+    const apiDTrades = dResult.status === 'fulfilled' ? dResult.value.trades : [];
+    const oErrors    = oResult.status === 'fulfilled' ? oResult.value.errors : [];
+    const dErrors    = dResult.status === 'fulfilled' ? dResult.value.errors : [];
+
+    // 하드코딩 + API 체결내역 합산 (날짜순 정렬)
+    const allOTrades = [...PRIOR_TRADES.filter(t => t.market === 'US'), ...apiOTrades]
+      .sort((a,b) => a.date.localeCompare(b.date));
+    const allDTrades = [...PRIOR_TRADES.filter(t => t.market === 'KR'), ...apiDTrades]
+      .sort((a,b) => a.date.localeCompare(b.date));
 
     return res.status(200).json({
-      trades:   [...dTrades, ...oTrades],
+      trades:   [...allDTrades, ...allOTrades],
       realized: {
-        samsung: calcRealizedPnL(dTrades, '005930', 349500),
-        micron:  calcRealizedPnL(oTrades, 'MU', 1040.5953),
+        samsung: calcRealizedPnL(allDTrades, '005930', 349500),
+        micron:  calcRealizedPnL(allOTrades, 'MU',     1040.5953),
       },
       debug: {
-        muTrades:      oTrades.filter(t => t.symbol === 'MU'),
-        samsungTrades: dTrades.filter(t => t.symbol === '005930'),
-        oErrors, dErrors,
+        priorTrades:   PRIOR_TRADES.length,
+        apiOTrades:    apiOTrades.length,
+        apiDTrades:    apiDTrades.length,
+        oErrors,
+        dErrors,
       },
       timestamp: Date.now(),
     });
