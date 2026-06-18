@@ -1383,7 +1383,7 @@ async function fetchAll() {
       fmtMarketTime(sam.marketTime, sam.exchangeTimezoneName, '005930.KS');
 
     // 1년 차트 그리기
-    if (sam.history) drawChart('samsungChart', sam.history, '2026-06-04', 349500, '원');
+    if (sam.history) drawChart('samsungChart', sam.history, '2026-06-04', kisData.samsung.avgPrice, '원');
 
     // 배지 업데이트
     const badge = document.getElementById('samsungBadge');
@@ -1417,7 +1417,7 @@ async function fetchAll() {
       fmtMarketTime(mu.marketTime, mu.exchangeTimezoneName, 'MU');
 
     // 1년 차트 그리기
-    if (mu.history) drawChart('micronChart', mu.history, '2026-06-02', 1040.60, 'USD');
+    if (mu.history) drawChart('micronChart', mu.history, '2026-06-02', kisData.micron.avgPrice, 'USD');
 
     if (mu.prePrice) {
       const preChg = ((mu.prePrice - mu.price) / mu.price * 100);
@@ -1723,8 +1723,8 @@ async function runNewsScan() {
       body: JSON.stringify({
         headlines,
         portfolio: {
-          samsung: { qty: 70, bep: 349500, currentPrice: samPrice, returnPct: samRet },
-          micron:  { qty: 30, bep: 1040.60, currentPrice: muPrice, returnPct: muRet }
+          samsung: { qty: kisData.samsung.qty, bep: kisData.samsung.avgPrice, currentPrice: samPrice, returnPct: samRet },
+          micron:  { qty: kisData.micron.qty,  bep: kisData.micron.avgPrice,  currentPrice: muPrice,  returnPct: muRet }
         }
       })
     });
