@@ -1833,13 +1833,11 @@ function renderAlerts(parsed, headlines) {
 fetchAll();
 updateHoldingBar();
 
-// KIS 계좌 연동 (최초 1회 + 10분마다 갱신)
+// KIS 계좌 연동 — 최초 1회만 (토큰 1일 1회 발급 원칙)
 fetchKISAccount().then(applyKISAccount);
-setInterval(() => fetchKISAccount().then(applyKISAccount), 600000);
-
-// 체결내역·실현손익 (최초 1회 + 30분마다 갱신)
+// 체결내역·실현손익 (최초 1회 + 6시간마다 갱신)
 fetchTrades();
-setInterval(fetchTrades, 1800000);
+setInterval(fetchTrades, 6 * 60 * 60 * 1000);
 
 // 5분마다 주가 자동 갱신
 setInterval(fetchAll, 300000);
