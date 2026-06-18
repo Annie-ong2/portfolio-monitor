@@ -1390,6 +1390,23 @@ async function fetchAll() {
     if (ret <= -20) { badge.textContent='REDUCE'; badge.className='badge badge-sell'; }
     else if (ret >= 0) { badge.textContent='HOLD+'; badge.className='badge badge-hold'; }
     else { badge.textContent='HOLD'; badge.className='badge badge-hold'; }
+
+    // realized-box 평가손익 실시간 갱신 (주가 업데이트 시마다)
+    const sEvalEl = document.getElementById('samsungEvalPnl');
+    if (sEvalEl) {
+      const ep = (sam.price - kisData.samsung.avgPrice) * kisData.samsung.qty;
+      sEvalEl.textContent = (ep >= 0 ? '+' : '') + fmt(Math.round(ep)) + '원';
+      sEvalEl.style.color = ep >= 0 ? '#ff4d6a' : '#4d9fff';
+      const tp = document.getElementById('samsungTotalPnl');
+      if (tp) {
+        const total = ep + realizedPnL.samsung;
+        tp.textContent = (total >= 0 ? '+' : '') + fmt(Math.round(total)) + '원';
+        tp.style.color = total >= 0 ? '#ff4d6a' : '#4d9fff';
+      }
+      // 박스 표시 (실현손익 없어도 평가손익은 보여줌)
+      const box = document.getElementById('samsungRealized');
+      if (box) box.style.display = 'block';
+    }
   }
 
   // ── 마이크론 ──
@@ -1411,6 +1428,23 @@ async function fetchAll() {
     document.getElementById('micron52H').textContent    = fmtUSD(mu.high52);
     document.getElementById('micron52L').textContent    = fmtUSD(mu.low52);
     updateTotalBanner();
+
+    // realized-box 평가손익 실시간 갱신
+    const mEvalEl = document.getElementById('micronEvalPnl');
+    if (mEvalEl) {
+      const ep = (mu.price - kisData.micron.avgPrice) * kisData.micron.qty;
+      console.log('[MU evalPnl]', mu.price, kisData.micron.avgPrice, kisData.micron.qty, ep);
+      mEvalEl.textContent = (ep >= 0 ? '+' : '') + '$' + Math.abs(ep).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      mEvalEl.style.color = ep >= 0 ? '#ff4d6a' : '#4d9fff';
+      const tp = document.getElementById('micronTotalPnl');
+      if (tp) {
+        const total = ep + realizedPnL.micron;
+        tp.textContent = (total >= 0 ? '+' : '') + '$' + Math.abs(total).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+        tp.style.color = total >= 0 ? '#ff4d6a' : '#4d9fff';
+      }
+      const box = document.getElementById('micronRealized');
+      if (box) box.style.display = 'block';
+    }
 
     // 실제 종가 시간 표시
     document.getElementById('micronQuoteTime').textContent =
