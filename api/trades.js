@@ -1,19 +1,16 @@
 // 한국투자증권 체결내역 + 실현손익
-// 기존 체결내역(API 신청 이전)은 하드코딩, 이후 발생분은 API 실시간 조회 후 합산
+// 실현손익: KIS 기간별손익 API (TTTC8715R 국내 / TTTS3250R 해외)
+// 체결내역: 당일 API + PRIOR_TRADES 하드코딩 합산
 
 const KIS_BASE   = 'https://openapi.koreainvestment.com:9443';
-const API_START  = '20260618'; // APP KEY 발급일 — 이후 체결만 API로 조회
+const START_DATE = '20260602'; // 최초 매수일
 
-// ── 하드코딩된 기존 체결내역 (APP KEY 발급 이전 거래)
+// ── 하드코딩 체결내역 (API 신청 이전 거래 — 표시용)
 const PRIOR_TRADES = [
-  // 마이크론 매수 (2026.06.02)
   { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260602', side:'BUY',  qty:20, price:1040.5953 },
-  // 마이크론 매수 추가 (2026.06.04)
   { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260604', side:'BUY',  qty:10, price:1040.5953 },
-  // 마이크론 1차 익절 (2026.06.16)
-  { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260616', side:'SELL', qty:10, price:1100.01 },
-  // 삼성전자 매수 (2026.06.04)
-  { market:'KR', symbol:'005930', name:'삼성전자', date:'20260604', side:'BUY', qty:70, price:349500 },
+  { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260616', side:'SELL', qty:10, price:1100.01   },
+  { market:'KR', symbol:'005930', name:'삼성전자',        date:'20260604', side:'BUY',  qty:70, price:349500    },
 ];
 
 const _cache = {
@@ -50,79 +47,147 @@ function todayStr() {
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 }
 
-// ── 국내주식 체결내역 (API_START 이후)
-async function getDomesticTrades(token, appKey, appSecret, accountNo) {
+// ── 국내주식 기간별 실현손익 (TTTC8715R)
+async function getDomesticRealizedPnL(token, appKey, appSecret, accountNo) {
   const [acctNum, acctSuffix] = parseAccount(accountNo);
+  const params = new URLSearchParams({
+    CANO:            acctNum,
+    ACNT_PRDT_CD:    acctSuffix || '01',
+    SORT_DVSN:       '00',
+    PDNO:            '',
+    INQR_STRT_DT:   START_DATE,
+    INQR_END_DT:    todayStr(),
+    CBLC_DVSN:      '00',
+    CTX_AREA_FK100:  '',
+    CTX_AREA_NK100:  '',
+  });
+
+  const res  = await fetch(`${KIS_BASE}/uapi/domestic-stock/v1/trading/inquire-period-trade-profit?${params}`, {
+    headers: {
+      'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
+      'appkey': appKey, 'appsecret': appSecret, 'tr_id': 'TTTC8715R', 'custtype': 'P',
+    },
+  });
+  const data = await res.json();
+  if (data.rt_cd !== '0') return { pnl: 0, trades: [], error: `TTTC8715R: ${data.msg1}` };
+
+  // output1: 종목별 손익 / output2: 합계
+  const items = (data.output1 || []);
+  const samsung = items.find(t => t.pdno === '005930');
+  const totalPnL = samsung ? parseFloat(samsung.rlzt_pfls || 0) : 0; // 실현손익
+
+  // 체결내역 형태로 변환
+  const trades = items.filter(t => t.pdno === '005930' && parseFloat(t.sll_qty || 0) > 0).map(t => ({
+    market: 'KR', symbol: t.pdno, name: t.prdt_name,
+    date: t.trad_dt || todayStr(),
+    side: 'SELL',
+    qty: parseFloat(t.sll_qty || 0),
+    price: parseFloat(t.sll_amt || 0) / parseFloat(t.sll_qty || 1),
+    source: 'api',
+  }));
+
+  return { pnl: totalPnL, trades, error: null };
+}
+
+// ── 해외주식 기간별 실현손익 (TTTS3250R)
+async function getOverseasRealizedPnL(token, appKey, appSecret, accountNo) {
+  const [acctNum, acctSuffix] = parseAccount(accountNo);
+  const params = new URLSearchParams({
+    CANO:            acctNum,
+    ACNT_PRDT_CD:    acctSuffix || '01',
+    INQR_STRT_DT:   START_DATE,
+    INQR_END_DT:    todayStr(),
+    WCRC_FRCR_DVSN_CD: '02', // 외화(USD)
+    NATN_CD:         '840',  // 미국
+    TR_MKET_CD:      '00',   // 전체
+    INQR_DVSN_CD:    '00',
+    CTX_AREA_FK200:  '',
+    CTX_AREA_NK200:  '',
+  });
+
+  const res  = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-period-trade-profit?${params}`, {
+    headers: {
+      'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
+      'appkey': appKey, 'appsecret': appSecret, 'tr_id': 'TTTS3250R', 'custtype': 'P',
+    },
+  });
+  const data = await res.json();
+  if (data.rt_cd !== '0') return { pnl: 0, trades: [], error: `TTTS3250R: ${data.msg1}` };
+
+  const items = (data.output1 || []);
+  const micron = items.find(t => t.pdno === 'MU');
+  const totalPnL = micron ? parseFloat(micron.rlzt_pfls || 0) : 0;
+
+  const trades = items.filter(t => t.pdno === 'MU' && parseFloat(t.sll_qty || 0) > 0).map(t => ({
+    market: 'US', symbol: t.pdno, name: t.prdt_name || '마이크론 테크놀로지',
+    date: t.trad_dt || todayStr(),
+    side: 'SELL',
+    qty: parseFloat(t.sll_qty || 0),
+    price: parseFloat(t.sll_amt || 0) / parseFloat(t.sll_qty || 1),
+    source: 'api',
+  }));
+
+  return { pnl: totalPnL, trades, error: null };
+}
+
+// ── 당일 국내주식 체결내역 (오늘 매도 실시간 반영용)
+async function getDomesticTodayTrades(token, appKey, appSecret, accountNo) {
+  const [acctNum, acctSuffix] = parseAccount(accountNo);
+  const today = todayStr();
   const errors = [];
 
   for (const trId of ['TTTC8001R', 'TTTC8908R', 'CTSC9115R']) {
-    const trades = [];
-    let ctxFk = '', ctxNk = '';
-    let success = false;
+    const body = {
+      CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
+      INQR_STRT_DT: today, INQR_END_DT: today,
+      SLL_BUY_DVSN_CD: '00', INQR_DVSN: '00', PDNO: '',
+      CCLD_DVSN: '01', ORD_GNO_BRNO: '', ODNO: '',
+      INQR_DVSN_3: '00', INQR_DVSN_1: '',
+      CTX_AREA_FK100: '', CTX_AREA_NK100: '',
+    };
+    const res  = await fetch(`${KIS_BASE}/uapi/domestic-stock/v1/trading/inquire-daily-ccld`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
+        'appkey': appKey, 'appsecret': appSecret, 'tr_id': trId, 'custtype': 'P',
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.rt_cd !== '0') { errors.push(`${trId}: ${data.msg1}`); continue; }
 
-    for (let page = 0; page < 5; page++) {
-      const body = {
-        CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
-        INQR_STRT_DT: API_START, INQR_END_DT: todayStr(),
-        SLL_BUY_DVSN_CD: '00', INQR_DVSN: '00', PDNO: '',
-        CCLD_DVSN: '01', ORD_GNO_BRNO: '', ODNO: '',
-        INQR_DVSN_3: '00', INQR_DVSN_1: '',
-        CTX_AREA_FK100: ctxFk, CTX_AREA_NK100: ctxNk,
-      };
-
-      const res = await fetch(`${KIS_BASE}/uapi/domestic-stock/v1/trading/inquire-daily-ccld`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
-          'appkey': appKey, 'appsecret': appSecret, 'tr_id': trId, 'custtype': 'P',
-        },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-
-      if (data.rt_cd !== '0') { errors.push(`${trId}: ${data.msg1}`); break; }
-
-      success = true;
-      (data.output1 || []).forEach(t => {
-        const qty = parseInt(t.tot_ccld_qty || 0);
-        if (!t.pdno || qty === 0) return;
-        trades.push({
-          market: 'KR', symbol: t.pdno, name: t.prdt_name,
-          date: t.ord_dt, side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
-          qty, price: parseFloat(t.avg_prvs || 0),
-          amount: parseFloat(t.tot_ccld_amt || 0),
-          source: 'api',
-        });
-      });
-
-      if (data.tr_cont === 'D' || data.tr_cont === 'E' || !data.tr_cont) break;
-      ctxFk = data.ctx_area_fk100 || ''; ctxNk = data.ctx_area_nk100 || '';
-      if (!ctxFk && !ctxNk) break;
-    }
-    if (success) return { trades, errors };
+    return {
+      trades: (data.output1 || []).filter(t => parseInt(t.tot_ccld_qty||0) > 0).map(t => ({
+        market: 'KR', symbol: t.pdno, name: t.prdt_name,
+        date: t.ord_dt, side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
+        qty: parseInt(t.tot_ccld_qty || 0),
+        price: parseFloat(t.avg_prvs || 0),
+        source: 'api_today',
+      })),
+      errors,
+    };
   }
   return { trades: [], errors };
 }
 
-// ── 해외주식 체결내역 (API_START 이후)
-async function getOverseasTrades(token, appKey, appSecret, accountNo) {
+// ── 해외주식 당일 체결내역
+async function getOverseasTodayTrades(token, appKey, appSecret, accountNo) {
   const [acctNum, acctSuffix] = parseAccount(accountNo);
+  const today = todayStr();
   const trades = [];
   const errors = [];
-  const today  = todayStr();
 
   for (const excd of ['NASD', 'NYSE', 'AMEX']) {
     if (excd !== 'NASD') await new Promise(r => setTimeout(r, 400));
+    const params = new URLSearchParams({
+      CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
+      PDNO: '', INQR_STRT_DT: today, INQR_END_DT: today,
+      SLL_BUY_DVSN_CD: '00', CCLD_NCCS_DVSN: '00',
+      OVRS_EXCG_CD: excd, SORT_SQN: 'DS',
+      CTX_AREA_FK200: '', CTX_AREA_NK200: '',
+    });
     try {
-      const params = new URLSearchParams({
-        CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
-        PDNO: '', INQR_STRT_DT: API_START, INQR_END_DT: today,
-        SLL_BUY_DVSN_CD: '00', CCLD_NCCS_DVSN: '00',
-        OVRS_EXCG_CD: excd, SORT_SQN: 'DS',
-        CTX_AREA_FK200: '', CTX_AREA_NK200: '',
-      });
-
-      const res = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-ccnl?${params}`, {
+      const res  = await fetch(`${KIS_BASE}/uapi/overseas-stock/v1/trading/inquire-ccnl?${params}`, {
         headers: {
           'Content-Type': 'application/json', 'authorization': `Bearer ${token}`,
           'appkey': appKey, 'appsecret': appSecret, 'tr_id': 'TTTS3035R', 'custtype': 'P',
@@ -130,17 +195,13 @@ async function getOverseasTrades(token, appKey, appSecret, accountNo) {
       });
       const data = await res.json();
       if (data.rt_cd !== '0') { errors.push(`${excd}: ${data.msg1}`); continue; }
-
-      const output = data.output1 || data.output || [];
-      output.forEach(t => {
+      (data.output1 || data.output || []).forEach(t => {
         const qty = parseFloat(t.ft_ccld_qty || 0);
         if (!t.pdno || qty === 0) return;
         trades.push({
           market: 'US', exchange: excd, symbol: t.pdno, name: t.prdt_name || '',
-          date: t.ord_dt || '', side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
-          qty, price: parseFloat(t.ft_ccld_unpr3 || 0),
-          amount: parseFloat(t.ft_ccld_amt3 || 0),
-          source: 'api',
+          date: t.ord_dt || today, side: t.sll_buy_dvsn_cd === '01' ? 'SELL' : 'BUY',
+          qty, price: parseFloat(t.ft_ccld_unpr3 || 0), source: 'api_today',
         });
       });
     } catch(e) { errors.push(`${excd}: ${e.message}`); }
@@ -148,19 +209,9 @@ async function getOverseasTrades(token, appKey, appSecret, accountNo) {
   return { trades, errors };
 }
 
-// ── 실현손익 계산 (하드코딩 + API 합산)
-function calcRealizedPnL(allTrades, symbol, avgBuyPrice) {
-  const sells = allTrades.filter(t => t.symbol === symbol && t.side === 'SELL');
-  let realizedPnL = 0, soldQty = 0;
-  sells.forEach(t => {
-    realizedPnL += (t.price - avgBuyPrice) * t.qty;
-    soldQty += t.qty;
-  });
-  return { realizedPnL, soldQty };
-}
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
 
   const acc1 = { key: process.env.KIS_APP_KEY,  secret: process.env.KIS_APP_SECRET,  account: process.env.KIS_ACCOUNT_NO  };
   const acc2 = { key: process.env.KIS_APP_KEY2, secret: process.env.KIS_APP_SECRET2, account: process.env.KIS_ACCOUNT_NO2 };
@@ -175,37 +226,43 @@ export default async function handler(req, res) {
     const token1 = t1.status === 'fulfilled' ? t1.value : null;
     const token2 = t2.status === 'fulfilled' ? t2.value : null;
 
-    // API로 신규 체결내역 조회
-    const [oResult, dResult] = await Promise.allSettled([
-      token1 ? getOverseasTrades(token1, acc1.key, acc1.secret, acc1.account) : Promise.resolve({ trades:[], errors:[] }),
-      token2 && acc2.account ? getDomesticTrades(token2, acc2.key, acc2.secret, acc2.account) : Promise.resolve({ trades:[], errors:[] }),
+    // 모든 조회 병렬 실행
+    const [
+      overseasPnLResult,
+      domesticPnLResult,
+      overseasTodayResult,
+      domesticTodayResult,
+    ] = await Promise.allSettled([
+      token1 ? getOverseasRealizedPnL(token1, acc1.key, acc1.secret, acc1.account)    : Promise.resolve({ pnl:0, trades:[], error:'토큰없음' }),
+      token2 && acc2.account ? getDomesticRealizedPnL(token2, acc2.key, acc2.secret, acc2.account) : Promise.resolve({ pnl:0, trades:[], error:'토큰없음' }),
+      token1 ? getOverseasTodayTrades(token1, acc1.key, acc1.secret, acc1.account)    : Promise.resolve({ trades:[], errors:[] }),
+      token2 && acc2.account ? getDomesticTodayTrades(token2, acc2.key, acc2.secret, acc2.account) : Promise.resolve({ trades:[], errors:[] }),
     ]);
 
-    const apiOTrades = oResult.status === 'fulfilled' ? oResult.value.trades : [];
-    const apiDTrades = dResult.status === 'fulfilled' ? dResult.value.trades : [];
-    const oErrors    = oResult.status === 'fulfilled' ? oResult.value.errors : [];
-    const dErrors    = dResult.status === 'fulfilled' ? dResult.value.errors : [];
+    const oRzd  = overseasPnLResult.status  === 'fulfilled' ? overseasPnLResult.value  : { pnl:0, trades:[], error: overseasPnLResult.reason?.message };
+    const dRzd  = domesticPnLResult.status  === 'fulfilled' ? domesticPnLResult.value  : { pnl:0, trades:[], error: domesticPnLResult.reason?.message };
+    const oToday = overseasTodayResult.status === 'fulfilled' ? overseasTodayResult.value.trades : [];
+    const dToday = domesticTodayResult.status === 'fulfilled' ? domesticTodayResult.value.trades : [];
 
-    // 하드코딩 + API 체결내역 합산 (날짜순 정렬)
-    const allOTrades = [...PRIOR_TRADES.filter(t => t.market === 'US'), ...apiOTrades]
-      .sort((a,b) => a.date.localeCompare(b.date));
-    const allDTrades = [...PRIOR_TRADES.filter(t => t.market === 'KR'), ...apiDTrades]
-      .sort((a,b) => a.date.localeCompare(b.date));
+    // 실현손익: API 기간별 손익 우선, 오류 시 PRIOR_TRADES로 폴백
+    const micronPnL  = oRzd.error ? calcFallback(PRIOR_TRADES.filter(t=>t.market==='US'), 'MU',     1040.5953) : oRzd.pnl;
+    const samsungPnL = dRzd.error ? calcFallback(PRIOR_TRADES.filter(t=>t.market==='KR'), '005930', 349500)    : dRzd.pnl;
 
-    // 1시간 캐시 — 체결내역은 자주 바뀌지 않음
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
+    // 체결내역: PRIOR_TRADES + 당일 API 합산 (중복 제거)
+    const allOTrades = mergeTrades([...PRIOR_TRADES.filter(t=>t.market==='US'), ...oToday]);
+    const allDTrades = mergeTrades([...PRIOR_TRADES.filter(t=>t.market==='KR'), ...dToday]);
+
     return res.status(200).json({
-      trades:   [...allDTrades, ...allOTrades],
+      trades: [...allDTrades, ...allOTrades],
       realized: {
-        samsung: calcRealizedPnL(allDTrades, '005930', 349500),
-        micron:  calcRealizedPnL(allOTrades, 'MU',     1040.5953),
+        samsung: { realizedPnL: samsungPnL, source: dRzd.error ? 'fallback' : 'api' },
+        micron:  { realizedPnL: micronPnL,  source: oRzd.error ? 'fallback' : 'api' },
       },
       debug: {
-        priorTrades:   PRIOR_TRADES.length,
-        apiOTrades:    apiOTrades.length,
-        apiDTrades:    apiDTrades.length,
-        oErrors,
-        dErrors,
+        oRzdError:    oRzd.error,
+        dRzdError:    dRzd.error,
+        oTodayCount:  oToday.length,
+        dTodayCount:  dToday.length,
       },
       timestamp: Date.now(),
     });
@@ -213,4 +270,21 @@ export default async function handler(req, res) {
   } catch(e) {
     return res.status(500).json({ error: e.message });
   }
+}
+
+// ── 폴백: PRIOR_TRADES 기반 실현손익 계산
+function calcFallback(trades, symbol, avgBuyPrice) {
+  const sells = trades.filter(t => t.symbol === symbol && t.side === 'SELL');
+  return sells.reduce((sum, t) => sum + (t.price - avgBuyPrice) * t.qty, 0);
+}
+
+// ── 중복 체결내역 제거 (같은 날짜+심볼+side+qty)
+function mergeTrades(trades) {
+  const seen = new Set();
+  return trades.filter(t => {
+    const key = `${t.date}-${t.symbol}-${t.side}-${t.qty}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a,b) => a.date.localeCompare(b.date));
 }
