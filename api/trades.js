@@ -27,9 +27,15 @@ async function getToken(appKey, appSecret, cacheKey) {
 
 function parseAccount(accountNo) {
   if (!accountNo) return ['', '01'];
-  if (accountNo.includes('-')) return accountNo.split('-');
-  if (accountNo.length >= 10)  return [accountNo.slice(0, 8), accountNo.slice(8)];
-  return [accountNo, '01'];
+  const clean = accountNo.trim().replace(/-/g, '');
+  if (clean.length === 8)  return [clean, '01'];       // 8자리 → 뒤 01 자동 추가
+  if (clean.length === 10) return [clean.slice(0,8), clean.slice(8)]; // 10자리 분리
+  if (clean.length === 11) return [clean.slice(0,8), clean.slice(8)]; // 11자리
+  if (accountNo.includes('-')) {
+    const parts = accountNo.split('-');
+    return [parts[0], parts[1] || '01'];
+  }
+  return [clean, '01'];
 }
 
 function todayStr() {
@@ -117,6 +123,9 @@ async function getOverseasTrades(token, appKey, appSecret, accountNo) {
 
   for (const excd of ['NASD', 'NYSE', 'AMEX']) {
     let ctxFk = '', ctxNk = '';
+
+    // 거래소별 호출 간 딜레이 (초당 거래건수 초과 방지)
+    if (excd !== 'NASD') await new Promise(r => setTimeout(r, 500));
 
     for (let page = 0; page < 5; page++) {
       const params = new URLSearchParams({
