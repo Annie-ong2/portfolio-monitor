@@ -224,7 +224,43 @@
     margin-top: 3px;
   }
 
-  /* ── 신호 모니터 ── */
+  /* ── 실현손익·체결내역 ── */
+  .realized-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .realized-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .realized-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: .08em;
+  }
+  .realized-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .trade-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-top: 1px solid var(--border);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .trade-side-buy  { color: #4d9fff; font-weight: 600; }
+  .trade-side-sell { color: #ff4d6a; font-weight: 600; }
   .signal-list { display: flex; flex-direction: column; gap: 7px; }
   .signal-item {
     display: flex;
@@ -735,6 +771,18 @@
         <span id="samsungVol">-</span>
       </div>
     </div>
+    <!-- 실현손익·체결내역 (삼성전자) -->
+    <div class="realized-box" id="samsungRealized" style="display:none;">
+      <div class="realized-row">
+        <span class="realized-label">실현손익 (확정)</span>
+        <span class="realized-val" id="samsungRealizedPnl">-</span>
+      </div>
+      <div class="realized-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
+        <span class="realized-label">총 손익 (평가+실현)</span>
+        <span class="realized-val" id="samsungTotalPnl">-</span>
+      </div>
+      <div id="samsungTrades" style="margin-top:6px;"></div>
+    </div>
     <!-- 1년 차트 -->
     <div style="margin-top:10px;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
@@ -745,8 +793,6 @@
       </div>
     </div>
   </div>
-
-  <!-- 마이크론 -->
   <div class="card">
     <div class="stock-header">
       <div>
@@ -823,6 +869,18 @@
         <label>52주 저가</label>
         <span id="micron52L" class="down">-</span>
       </div>
+    </div>
+    <!-- 실현손익·체결내역 (마이크론) -->
+    <div class="realized-box" id="micronRealized" style="display:none;">
+      <div class="realized-row">
+        <span class="realized-label">실현손익 (확정)</span>
+        <span class="realized-val" id="micronRealizedPnl">-</span>
+      </div>
+      <div class="realized-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
+        <span class="realized-label">총 손익 (평가+실현)</span>
+        <span class="realized-val" id="micronTotalPnl">-</span>
+      </div>
+      <div id="micronTrades" style="margin-top:6px;"></div>
     </div>
     <!-- 1년 차트 -->
     <div style="margin-top:10px;">
@@ -1031,8 +1089,98 @@ async function fetchQuote(symbol, history = false) {
   }
 }
 
+// ── 체결내역 & 실현손익 연동 ──
+async function fetchTrades() {
+  try {
+    const res = await fetch('/api/trades');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.error) return;
+    applyTrades(data);
+  } catch(e) {}
+}
+
+function applyTrades(data) {
+  const { trades = [], realized = {} } = data;
+  const krw = krwData?.price || 1520;
+
+  // ── 삼성전자 실현손익
+  const sam = realized.samsung;
+  if (sam && sam.soldQty > 0) {
+    const pnl      = sam.realizedPnL;
+    const evalPnl  = samsungData ? (samsungData.price - kisData.samsung.avgPrice) * kisData.samsung.qty : 0;
+    const totalPnl = pnl + evalPnl;
+
+    const box = document.getElementById('samsungRealized');
+    if (box) box.style.display = 'block';
+
+    const rPnl = document.getElementById('samsungRealizedPnl');
+    if (rPnl) {
+      rPnl.textContent  = (pnl >= 0 ? '+' : '') + fmt(Math.round(pnl)) + '원';
+      rPnl.style.color  = pnl >= 0 ? '#ff4d6a' : '#4d9fff';
+    }
+    const tPnl = document.getElementById('samsungTotalPnl');
+    if (tPnl) {
+      tPnl.textContent  = (totalPnl >= 0 ? '+' : '') + fmt(Math.round(totalPnl)) + '원';
+      tPnl.style.color  = totalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
+    }
+
+    // 체결내역 목록 (삼성전자만)
+    const samTrades = trades.filter(t => t.symbol === '005930').slice(0, 5);
+    const tradeDiv  = document.getElementById('samsungTrades');
+    if (tradeDiv && samTrades.length > 0) {
+      tradeDiv.innerHTML = samTrades.map(t => `
+        <div class="trade-item">
+          <span class="${t.side === 'SELL' ? 'trade-side-sell' : 'trade-side-buy'}">${t.side === 'SELL' ? '매도' : '매수'}</span>
+          <span>${t.qty}주 @ ${fmt(t.price)}원</span>
+          <span>${t.date.slice(0,4)}.${t.date.slice(4,6)}.${t.date.slice(6,8)}</span>
+        </div>`).join('');
+    }
+  }
+
+  // ── 마이크론 실현손익
+  const mu = realized.micron;
+  if (mu && mu.soldQty > 0) {
+    const pnl     = mu.realizedPnL;
+    const evalPnl = micronData ? (micronData.price - kisData.micron.avgPrice) * kisData.micron.qty : 0;
+    const totalPnl = pnl + evalPnl;
+
+    const box = document.getElementById('micronRealized');
+    if (box) box.style.display = 'block';
+
+    const rPnl = document.getElementById('micronRealizedPnl');
+    if (rPnl) {
+      rPnl.textContent = (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      rPnl.style.color = pnl >= 0 ? '#ff4d6a' : '#4d9fff';
+    }
+    const tPnl = document.getElementById('micronTotalPnl');
+    if (tPnl) {
+      tPnl.textContent = (totalPnl >= 0 ? '+' : '') + '$' + Math.abs(totalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      tPnl.style.color = totalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
+    }
+
+    // 체결내역 목록 (마이크론만)
+    const muTrades = trades.filter(t => t.symbol === 'MU').slice(0, 5);
+    const tradeDiv = document.getElementById('micronTrades');
+    if (tradeDiv && muTrades.length > 0) {
+      tradeDiv.innerHTML = muTrades.map(t => `
+        <div class="trade-item">
+          <span class="${t.side === 'SELL' ? 'trade-side-sell' : 'trade-side-buy'}">${t.side === 'SELL' ? '매도' : '매수'}</span>
+          <span>${t.qty}주 @ $${t.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+          <span>${t.date.slice(0,4)}.${t.date.slice(4,6)}.${t.date.slice(6,8)}</span>
+        </div>`).join('');
+    }
+  }
+}
+
 // ── 한국투자증권 계좌 자동 연동 ──
 let kisAccountLoaded = false;
+
+// 전역 보유 데이터 (fetchAll에서 손익 계산에 사용)
+let kisData = {
+  samsung: { qty: 70, avgPrice: 349500 },   // 기본값 (연동 전)
+  micron:  { qty: 30, avgPrice: 1040.60 },
+};
 
 async function fetchKISAccount() {
   try {
@@ -1051,42 +1199,55 @@ function applyKISAccount(account) {
 
   const { domestic = [], overseas = [] } = account;
 
-  // 삼성전자 (국내) — 종목코드 005930
+  // ── 삼성전자 (005930)
   const samsung = domestic.find(h => h.symbol === '005930');
   if (samsung) {
-    // 보유수량·매입단가 업데이트 (화면 텍스트)
-    document.querySelectorAll('.meta-item').forEach(el => {
-      const label = el.querySelector('label')?.textContent;
-      if (label === '보유수량' && el.closest('#samsungCard')) {
-        el.querySelector('span').textContent = samsung.qty + '주';
-      }
-      if (label === '매입단가' && el.closest('#samsungCard')) {
-        el.querySelector('span').textContent = fmt(samsung.avgPrice) + '원';
-      }
-    });
-    // KIS 계좌 연동 배지 표시
-    const badge = document.getElementById('kisAccountBadge');
-    if (badge) {
-      badge.style.display = 'inline-block';
-      badge.textContent = '🔗 계좌 연동';
+    kisData.samsung = { qty: samsung.qty, avgPrice: samsung.avgPrice };
+
+    // 카드 내 보유수량·매입단가 텍스트 업데이트
+    const samsungCard = document.querySelector('.card:has(#samsungPrice)') ||
+                        document.getElementById('samsungPrice')?.closest('.card');
+    if (samsungCard) {
+      samsungCard.querySelectorAll('.meta-item').forEach(el => {
+        const label = el.querySelector('label')?.textContent?.trim();
+        const span  = el.querySelector('span');
+        if (!span) return;
+        if (label === '보유수량') span.textContent = samsung.qty + '주';
+        if (label === '매입단가') span.textContent = fmt(samsung.avgPrice) + '원';
+      });
     }
   }
 
-  // 마이크론 (해외) — 종목코드 MU
+  // ── 마이크론 (MU)
   const micron = overseas.find(h => h.symbol === 'MU');
   if (micron) {
-    document.querySelectorAll('.meta-item').forEach(el => {
-      const label = el.querySelector('label')?.textContent;
-      if (label === '보유수량' && el.closest('#micronCard')) {
-        el.querySelector('span').textContent = micron.qty + '주';
-      }
-      if (label === '매입단가' && el.closest('#micronCard')) {
-        el.querySelector('span').textContent = '$' + micron.avgPrice.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-      }
-    });
+    kisData.micron = { qty: micron.qty, avgPrice: micron.avgPrice };
+
+    const micronCard = document.querySelector('.card:has(#micronPrice)') ||
+                       document.getElementById('micronPrice')?.closest('.card');
+    if (micronCard) {
+      micronCard.querySelectorAll('.meta-item').forEach(el => {
+        const label = el.querySelector('label')?.textContent?.trim();
+        const span  = el.querySelector('span');
+        if (!span) return;
+        if (label === '보유수량') span.textContent = micron.qty + '주';
+        if (label === '매입단가') span.textContent = '$' + micron.avgPrice.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      });
+    }
+  }
+
+  // ── 계좌 연동 배지 표시
+  const badge = document.getElementById('kisAccountBadge');
+  if (badge && (samsung || micron)) {
+    badge.style.display = 'inline-block';
+    const connected = [samsung ? '삼성전자' : '', micron ? '마이크론' : ''].filter(Boolean).join('·');
+    badge.textContent = '🔗 ' + connected + ' 연동';
   }
 
   kisAccountLoaded = true;
+
+  // 계좌 데이터 반영 후 손익 즉시 재계산
+  fetchAll();
 }
 
 // 종가 시간 포맷
@@ -1144,7 +1305,8 @@ async function fetchAll() {
 
   // ── 삼성전자 ──
   if (sam) {
-    const BEP = 349500, QTY = 70;
+    const BEP = kisData.samsung.avgPrice;
+    const QTY = kisData.samsung.qty;
     const pnl = (sam.price - BEP) * QTY;
     const ret = ((sam.price - BEP) / BEP) * 100;
 
@@ -1178,7 +1340,8 @@ async function fetchAll() {
 
   // ── 마이크론 ──
   if (mu) {
-    const BEP = 1040.60, QTY = 30;
+    const BEP = kisData.micron.avgPrice;
+    const QTY = kisData.micron.qty;
     const pnl = (mu.price - BEP) * QTY;
     const ret = ((mu.price - BEP) / BEP) * 100;
 
@@ -1217,8 +1380,8 @@ async function fetchAll() {
 
   // ── 총 손익 원화 환산 ──
   if (sam && mu && krw) {
-    const samPnl = (sam.price - 349500) * 70;
-    const muPnlKrw = (mu.price - 1040.60) * 30 * krw.price;
+    const samPnl    = (sam.price - kisData.samsung.avgPrice) * kisData.samsung.qty;
+    const muPnlKrw  = (mu.price  - kisData.micron.avgPrice)  * kisData.micron.qty * krw.price;
     const total = samPnl + muPnlKrw;
     document.getElementById('totalPnl').textContent  = sign(total) + fmt(Math.round(total)) + '원';
     document.getElementById('totalPnl').className    = 'pnl-amount ' + colorClass(total);
@@ -1260,7 +1423,7 @@ function updateAI(sam, mu, krw, tnx) {
   const signals = [];
 
   if (sam) {
-    const samRet = ((sam.price - 349500) / 349500 * 100);
+    const samRet = ((sam.price - kisData.samsung.avgPrice) / kisData.samsung.avgPrice * 100);
     if (samRet < -15) signals.push('삼성전자 손실 심화 (-15% 초과)');
     if (krw && krw.price > 1550) signals.push('환율 1,550원 돌파 — 외국인 이탈 가속 우려');
     if (tnx && tnx.price > 5.0) signals.push('미 10년물 5% 초과 — 성장주 밸류에이션 부담');
@@ -1499,8 +1662,8 @@ async function runNewsScan() {
   status.innerHTML = `<span class="loading">② Claude가 ${headlines.length}개 뉴스 분석 중...</span>`;
 
   // 2단계: 실시간 손익 계산 후 Claude 분석 요청
-  const samRet = samsungData ? ((samsungData.price - 349500) / 349500 * 100).toFixed(2) : '-13.45';
-  const muRet  = micronData  ? ((micronData.price  - 1040.60) / 1040.60 * 100).toFixed(2) : '-13.78';
+  const samRet   = samsungData ? ((samsungData.price - kisData.samsung.avgPrice) / kisData.samsung.avgPrice * 100).toFixed(2) : '-13.45';
+  const muRet    = micronData  ? ((micronData.price  - kisData.micron.avgPrice)  / kisData.micron.avgPrice  * 100).toFixed(2) : '-13.78';
   const samPrice = samsungData ? Math.round(samsungData.price).toLocaleString('ko-KR') + '원' : '미조회';
   const muPrice  = micronData  ? '$' + micronData.price.toFixed(2) : '미조회';
 
@@ -1624,6 +1787,10 @@ updateHoldingBar();
 // KIS 계좌 연동 (최초 1회 + 10분마다 갱신)
 fetchKISAccount().then(applyKISAccount);
 setInterval(() => fetchKISAccount().then(applyKISAccount), 600000);
+
+// 체결내역·실현손익 (최초 1회 + 30분마다 갱신)
+fetchTrades();
+setInterval(fetchTrades, 1800000);
 
 // 5분마다 주가 자동 갱신
 setInterval(fetchAll, 300000);
