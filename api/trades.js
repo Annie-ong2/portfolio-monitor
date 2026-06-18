@@ -192,6 +192,8 @@ export default async function handler(req, res) {
     const allDTrades = [...PRIOR_TRADES.filter(t => t.market === 'KR'), ...apiDTrades]
       .sort((a,b) => a.date.localeCompare(b.date));
 
+    // 1시간 캐시 — 체결내역은 자주 바뀌지 않음
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
     return res.status(200).json({
       trades:   [...allDTrades, ...allOTrades],
       realized: {
