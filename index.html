@@ -1220,6 +1220,9 @@ function applyTrades(data) {
         </div>`).join('');
     }
   }
+
+  // 실현손익 반영 후 배너 즉시 갱신
+  updateTotalBanner();
 }
 
 // ── 한국투자증권 계좌 자동 연동 ──
