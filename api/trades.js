@@ -111,7 +111,7 @@ async function getOverseasTrades(token, appKey, appSecret, accountNo) {
       const params = new URLSearchParams({
         CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
         PDNO: '', INQR_STRT_DT: START_DATE, INQR_END_DT: today,
-        SLL_BUY_DVSN_CD: '00', CCLD_NCCS_DVSN: '01',
+        SLL_BUY_DVSN_CD: '00', CCLD_NCCS_DVSN: '00',
         OVRS_EXCG_CD: excd, SORT_SQN: 'DS',
         CTX_AREA_FK200: ctxFk, CTX_AREA_NK200: ctxNk,
       });
