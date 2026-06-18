@@ -87,6 +87,9 @@ async function getDomesticTrades(token, appKey, appSecret, accountNo) {
       break;
     }
 
+    // 첫 페이지 응답 원본 저장 (디버그용)
+    if (page === 0) errors.push(`rt_cd:0 output1_length:${(data.output1||[]).length} output2_keys:${Object.keys(data.output2||{}).join(',')}`);
+
     (data.output1 || []).forEach(t => {
       const qty = parseInt(t.tot_ccld_qty || 0);
       if (!t.pdno || qty === 0) return;
@@ -158,6 +161,12 @@ async function getOverseasTrades(token, appKey, appSecret, accountNo) {
       if (data.rt_cd !== '0') {
         errors.push(`${excd}/TTTS3035R: ${data.msg1}`);
         break;
+      }
+
+      // 첫 페이지 응답 원본 저장 (디버그용)
+      if (page === 0) {
+        const output = data.output1 || data.output || [];
+        errors.push(`${excd} rt_cd:0 output_length:${output.length} keys:${output[0] ? Object.keys(output[0]).slice(0,8).join(',') : 'empty'}`);
       }
 
       const output = data.output1 || data.output || [];
