@@ -598,7 +598,10 @@
   <div style="text-align:right;">
     <div class="last-update"><span class="live-dot"></span>야후 파이낸스 연동</div>
     <div class="last-update" id="updateTime" style="margin-top:3px;">업데이트 중...</div>
-    <button class="refresh-btn" style="margin-top:6px;" onclick="fetchAll()">↻ 새로고침</button>
+    <div style="margin-top:4px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+      <span id="kisAccountBadge" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 8px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89640;">🔗 계좌 연동</span>
+      <button class="refresh-btn" onclick="fetchAll()">↻ 새로고침</button>
+    </div>
   </div>
 </div>
 
@@ -1026,6 +1029,64 @@ async function fetchQuote(symbol, history = false) {
   } catch(e) {
     return null;
   }
+}
+
+// ── 한국투자증권 계좌 자동 연동 ──
+let kisAccountLoaded = false;
+
+async function fetchKISAccount() {
+  try {
+    const res = await fetch('/api/account');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.error) return null;
+    return data;
+  } catch(e) {
+    return null;
+  }
+}
+
+function applyKISAccount(account) {
+  if (!account) return;
+
+  const { domestic = [], overseas = [] } = account;
+
+  // 삼성전자 (국내) — 종목코드 005930
+  const samsung = domestic.find(h => h.symbol === '005930');
+  if (samsung) {
+    // 보유수량·매입단가 업데이트 (화면 텍스트)
+    document.querySelectorAll('.meta-item').forEach(el => {
+      const label = el.querySelector('label')?.textContent;
+      if (label === '보유수량' && el.closest('#samsungCard')) {
+        el.querySelector('span').textContent = samsung.qty + '주';
+      }
+      if (label === '매입단가' && el.closest('#samsungCard')) {
+        el.querySelector('span').textContent = fmt(samsung.avgPrice) + '원';
+      }
+    });
+    // KIS 계좌 연동 배지 표시
+    const badge = document.getElementById('kisAccountBadge');
+    if (badge) {
+      badge.style.display = 'inline-block';
+      badge.textContent = '🔗 계좌 연동';
+    }
+  }
+
+  // 마이크론 (해외) — 종목코드 MU
+  const micron = overseas.find(h => h.symbol === 'MU');
+  if (micron) {
+    document.querySelectorAll('.meta-item').forEach(el => {
+      const label = el.querySelector('label')?.textContent;
+      if (label === '보유수량' && el.closest('#micronCard')) {
+        el.querySelector('span').textContent = micron.qty + '주';
+      }
+      if (label === '매입단가' && el.closest('#micronCard')) {
+        el.querySelector('span').textContent = '$' + micron.avgPrice.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      }
+    });
+  }
+
+  kisAccountLoaded = true;
 }
 
 // 종가 시간 포맷
@@ -1559,6 +1620,11 @@ function renderAlerts(parsed, headlines) {
 // 최초 실행
 fetchAll();
 updateHoldingBar();
+
+// KIS 계좌 연동 (최초 1회 + 10분마다 갱신)
+fetchKISAccount().then(applyKISAccount);
+setInterval(() => fetchKISAccount().then(applyKISAccount), 600000);
+
 // 5분마다 주가 자동 갱신
 setInterval(fetchAll, 300000);
 </script>
