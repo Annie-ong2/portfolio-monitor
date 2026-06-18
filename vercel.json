@@ -4,6 +4,7 @@
     { "src": "/api/quote",   "dest": "/api/quote.js"   },
     { "src": "/api/news",    "dest": "/api/news.js"    },
     { "src": "/api/analyze", "dest": "/api/analyze.js" },
+    { "src": "/api/account", "dest": "/api/account.js" },
     { "src": "/(.*)",        "dest": "/index.html"     }
   ]
 }
