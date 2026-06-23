@@ -719,11 +719,11 @@
     <div class="stock-meta" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="meta-item">
         <label>보유수량</label>
-        <span>70주</span>
+        <span id="samsungQtySpan">70주</span>
       </div>
       <div class="meta-item">
         <label>매입단가</label>
-        <span>349,500원</span>
+        <span id="samsungAvgSpan">349,500원</span>
       </div>
       <div class="meta-item">
         <label>평가금액</label>
@@ -821,11 +821,11 @@
     <div class="stock-meta" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="meta-item">
         <label>보유수량</label>
-        <span>30주</span>
+        <span id="micronQtySpan">15주</span>
       </div>
       <div class="meta-item">
         <label>매입단가</label>
-        <span>$1,040.60</span>
+        <span id="micronAvgSpan">$1,040.60</span>
       </div>
       <div class="meta-item">
         <label>평가금액</label>
@@ -1097,6 +1097,15 @@ const PRIOR_TRADES = [
 let realizedPnL = { samsung: 0, micron: 0 };
 let samsungData = null, micronData = null, krwData = null;
 
+// localStorage 헬퍼 — applyManualTrades보다 먼저 선언 필수
+const LS_KEY = 'portfolio_manual_trades';
+function getManualTrades() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
+}
+function saveManualTrades(trades) {
+  localStorage.setItem(LS_KEY, JSON.stringify(trades));
+}
+
 async function fetchQuote(symbol, history = false) {
   try {
     const url = `/api/quote?symbol=${encodeURIComponent(symbol)}${history ? '&history=true' : ''}`;
@@ -1166,6 +1175,7 @@ function renderTradeList(symbol, trades, divId, market) {
 function applyManualTrades() {
   const manual = getManualTrades();
 
+  // ── 마이크론 실현손익
   const muSells = mergeTrades([
     ...PRIOR_TRADES.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
     ..._apiTrades.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
@@ -1173,13 +1183,40 @@ function applyManualTrades() {
   ]);
   realizedPnL.micron = muSells.reduce((sum, t) => sum + (t.price - 1040.5953) * t.qty, 0);
 
+  // ── 삼성전자 실현손익
+  // API(TTTC8715R)가 반영된 경우 → API 값 우선 (manual 무시하여 중복 방지)
+  // API 미반영(0원)인 경우 → manual 합산
   const samManualPnL = manual
     .filter(t => t.symbol === '005930' && t.side === 'SELL')
     .reduce((sum, t) => sum + (t.price - 349500) * t.qty, 0);
-  realizedPnL.samsung = (window._baseSamsungPnL || 0) + samManualPnL;
+  const apiHasSamsungPnL = (window._baseSamsungPnL || 0) > 0;
+  realizedPnL.samsung = apiHasSamsungPnL
+    ? (window._baseSamsungPnL || 0)   // API 반영됨 → API만 사용
+    : samManualPnL;                    // API 미반영 → manual 사용
 
-  const muEval  = micronData  ? (micronData.price  - kisData.micron.avgPrice)  * kisData.micron.qty  : 0;
-  const samEval = samsungData ? (samsungData.price - kisData.samsung.avgPrice) * kisData.samsung.qty : 0;
+  // ── 보유수량 재계산 (전체 매수 - PRIOR 매도 - manual 매도)
+  const totalBoughtMU  = PRIOR_TRADES.filter(t => t.symbol === 'MU'     && t.side === 'BUY').reduce((s,t) => s+t.qty, 0);
+  const totalBoughtSam = PRIOR_TRADES.filter(t => t.symbol === '005930' && t.side === 'BUY').reduce((s,t) => s+t.qty, 0);
+  const priorSoldMU    = PRIOR_TRADES.filter(t => t.symbol === 'MU'     && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
+  const priorSoldSam   = PRIOR_TRADES.filter(t => t.symbol === '005930' && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
+  const manualSoldMU   = manual.filter(t => t.symbol === 'MU'     && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
+  const manualSoldSam  = manual.filter(t => t.symbol === '005930' && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
+
+  const actualMU  = Math.max(0, totalBoughtMU  - priorSoldMU  - manualSoldMU);
+  const actualSam = Math.max(0, totalBoughtSam - priorSoldSam - manualSoldSam);
+
+  kisData.micron.qty  = actualMU;
+  kisData.samsung.qty = actualSam;
+
+  // 보유수량 UI 업데이트
+  const muQEl  = document.getElementById('micronQtySpan');
+  const samQEl = document.getElementById('samsungQtySpan');
+  if (muQEl)  muQEl.textContent  = actualMU  + '주';
+  if (samQEl) samQEl.textContent = actualSam + '주';
+
+  // ── 평가손익·총손익 재계산
+  const muEval  = micronData  ? (micronData.price  - kisData.micron.avgPrice)  * actualMU  : 0;
+  const samEval = samsungData ? (samsungData.price - kisData.samsung.avgPrice) * actualSam : 0;
   const muTotal  = realizedPnL.micron  + muEval;
   const samTotal = realizedPnL.samsung + samEval;
 
@@ -1338,48 +1375,29 @@ function applyKISAccount(account) {
   // ── 삼성전자 (005930)
   const samsung = domestic.find(h => h.symbol === '005930');
   if (samsung) {
-    // 당일 매도 체결 수량 차감 (T+1 정산 전 잔고 보정)
     const todaySoldSam = (window._todayTrades || [])
       .filter(t => t.symbol === '005930' && t.side === 'SELL')
       .reduce((sum, t) => sum + t.qty, 0);
     const actualQty = Math.max(0, samsung.qty - todaySoldSam);
     kisData.samsung = { qty: actualQty, avgPrice: samsung.avgPrice };
-
-    // 카드 내 보유수량·매입단가 텍스트 업데이트
-    const samsungCard = document.querySelector('.card:has(#samsungPrice)') ||
-                        document.getElementById('samsungPrice')?.closest('.card');
-    if (samsungCard) {
-      samsungCard.querySelectorAll('.meta-item').forEach(el => {
-        const label = el.querySelector('label')?.textContent?.trim();
-        const span  = el.querySelector('span');
-        if (!span) return;
-        if (label === '보유수량') span.textContent = actualQty + '주';
-        if (label === '매입단가') span.textContent = fmt(samsung.avgPrice) + '원';
-      });
-    }
+    const qEl = document.getElementById('samsungQtySpan');
+    const aEl = document.getElementById('samsungAvgSpan');
+    if (qEl) qEl.textContent = actualQty + '주';
+    if (aEl) aEl.textContent = fmt(samsung.avgPrice) + '원';
   }
 
   // ── 마이크론 (MU)
   const micron = overseas.find(h => h.symbol === 'MU');
   if (micron) {
-    // 당일 매도 체결 수량 차감 (T+1 정산 전 잔고 보정)
     const todaySoldMU = (window._todayTrades || [])
       .filter(t => t.symbol === 'MU' && t.side === 'SELL')
       .reduce((sum, t) => sum + t.qty, 0);
     const actualQty = Math.max(0, micron.qty - todaySoldMU);
     kisData.micron = { qty: actualQty, avgPrice: micron.avgPrice };
-
-    const micronCard = document.querySelector('.card:has(#micronPrice)') ||
-                       document.getElementById('micronPrice')?.closest('.card');
-    if (micronCard) {
-      micronCard.querySelectorAll('.meta-item').forEach(el => {
-        const label = el.querySelector('label')?.textContent?.trim();
-        const span  = el.querySelector('span');
-        if (!span) return;
-        if (label === '보유수량') span.textContent = actualQty + '주';
-        if (label === '매입단가') span.textContent = '$' + micron.avgPrice.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-      });
-    }
+    const qEl = document.getElementById('micronQtySpan');
+    const aEl = document.getElementById('micronAvgSpan');
+    if (qEl) qEl.textContent = actualQty + '주';
+    if (aEl) aEl.textContent = '$' + micron.avgPrice.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   }
 
   // ── 계좌 연동 배지 표시
@@ -1955,14 +1973,137 @@ fetchKISAccount().then(applyKISAccount);
 fetchTrades();
 setInterval(fetchTrades, 6 * 60 * 60 * 1000);
 
-// 페이지 로딩 시 수동 체결내역 즉시 반영
-setTimeout(applyManualTrades, 500);
+async function fetchManualTrades() {
+  try {
+    const res = await fetch('/api/trades-save');
+    if (!res.ok) throw new Error('조회 실패');
+    const data = await res.json();
+    const manual = (data.trades || []).filter(t => t.source === 'manual');
+    localStorage.setItem(LS_KEY, JSON.stringify(manual));
+    return manual;
+  } catch(e) {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
+  }
+}
+
+let _modalMarket = '', _modalSymbol = '', _modalName = '', _modalSide = 'SELL';
+
+function openTradeModal(market, symbol, name) {
+  _modalMarket = market; _modalSymbol = symbol; _modalName = name;
+  document.getElementById('modalTitle').textContent = name + ' 체결내역 추가';
+  document.getElementById('modalPriceLabel').textContent = '체결 단가' + (market === 'KR' ? ' (원)' : ' (USD)');
+  const today = new Date();
+  document.getElementById('modalDate').value = today.toISOString().slice(0,10);
+  document.getElementById('modalQty').value = '';
+  document.getElementById('modalPrice').value = '';
+  setModalSide('SELL');
+  renderModalList();
+  document.getElementById('tradeModal').style.display = 'flex';
+}
+
+function closeTradeModal() {
+  document.getElementById('tradeModal').style.display = 'none';
+}
+
+function setModalSide(side) {
+  _modalSide = side;
+  document.getElementById('btnBuy').style.background  = side === 'BUY'  ? '#ff4d6a20' : 'var(--muted)';
+  document.getElementById('btnBuy').style.color       = side === 'BUY'  ? '#ff4d6a'   : 'var(--text-dim)';
+  document.getElementById('btnSell').style.background = side === 'SELL' ? '#4d9fff20' : 'var(--muted)';
+  document.getElementById('btnSell').style.color      = side === 'SELL' ? '#4d9fff'   : 'var(--text-dim)';
+}
+
+async function saveTradeModal() {
+  const dateRaw = document.getElementById('modalDate').value;
+  const qty     = parseFloat(document.getElementById('modalQty').value);
+  const price   = parseFloat(document.getElementById('modalPrice').value);
+  if (!dateRaw || !qty || !price) { alert('날짜, 수량, 단가를 모두 입력해주세요.'); return; }
+  const date = dateRaw.replace(/-/g, '');
+
+  const btn = document.querySelector('#tradeModal button[onclick="saveTradeModal()"]');
+  if (btn) { btn.textContent = '저장 중...'; btn.disabled = true; }
+
+  try {
+    const res = await fetch('/api/trades-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ market: _modalMarket, symbol: _modalSymbol, name: _modalName, date, side: _modalSide, qty, price }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || '저장 실패');
+
+    const trades = getManualTrades();
+    trades.push({ id: data.id, market: _modalMarket, symbol: _modalSymbol, name: _modalName, date, side: _modalSide, qty, price, source: 'manual' });
+    saveManualTrades(trades);
+    renderModalList();
+    applyManualTrades();
+    document.getElementById('modalQty').value = '';
+    document.getElementById('modalPrice').value = '';
+  } catch(e) {
+    alert('저장 실패: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = '저장'; btn.disabled = false; }
+  }
+}
+
+async function deleteManualTrade(idx) {
+  const trades = getManualTrades();
+  const trade = trades[idx];
+  if (!trade) return;
+  try {
+    if (trade.id) {
+      await fetch('/api/trades-save', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: trade.id }),
+      });
+    }
+    trades.splice(idx, 1);
+    saveManualTrades(trades);
+    renderModalList();
+    applyManualTrades();
+  } catch(e) {
+    alert('삭제 실패: ' + e.message);
+  }
+}
+
+function renderModalList() {
+  const allTrades = getManualTrades();
+  const trades = allTrades.filter(t => t.symbol === _modalSymbol);
+  const div = document.getElementById('modalTradeList');
+  if (!div) return;
+  if (trades.length === 0) { div.innerHTML = '<div style="color:var(--text-dim);font-size:10px;">없음</div>'; return; }
+  div.innerHTML = trades.map(t => {
+    const idx = allTrades.findIndex(a => a.symbol === t.symbol && a.date === t.date && a.side === t.side && a.qty === t.qty && a.price === t.price);
+    const dateStr = t.date.slice(0,4)+'.'+t.date.slice(4,6)+'.'+t.date.slice(6,8);
+    const priceStr = t.market === 'KR' ? t.price.toLocaleString()+'원' : '$'+t.price.toLocaleString('en-US',{minimumFractionDigits:2});
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;">
+      <span style="color:${t.side==='SELL'?'#4d9fff':'#ff4d6a'}">${t.side==='SELL'?'매도':'매수'}</span>
+      <span style="color:var(--text)">${t.qty}주 @ ${priceStr}</span>
+      <span style="color:var(--text-dim)">${dateStr}</span>
+      <button onclick="deleteManualTrade(${idx})" style="background:none;border:none;color:#ff4d6a;cursor:pointer;font-size:11px;padding:0 4px;">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// 페이지 로딩 시 노션에서 manual 체결내역 조회 후 반영
+fetchManualTrades().then(trades => {
+  saveManualTrades(trades);
+  applyManualTrades();
+});
 
 // 5분마다 주가 자동 갱신
 setInterval(fetchAll, 300000);
+
+// 모달 외부 클릭 시 닫기 (DOM 로드 후 실행)
+document.addEventListener('DOMContentLoaded', function() {
+  const modal = document.getElementById('tradeModal');
+  if (modal) modal.addEventListener('click', function(e) {
+    if (e.target === this) closeTradeModal();
+  });
+});
 </script>
-<!-- ── 체결내역 직접 입력 모달 ── -->
-<div id="tradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;">
+<!-- ── 체결내역 직접 입력 모달 ── --> style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#1a1a2e;border:1px solid var(--border);border-radius:12px;padding:24px;width:320px;max-width:90vw;">
     <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;" id="modalTitle">체결내역 추가</div>
 
@@ -2001,92 +2142,5 @@ setInterval(fetchAll, 300000);
   </div>
 </div>
 
-<script>
-// ── 체결내역 localStorage 관리 ──
-const LS_KEY = 'portfolio_manual_trades';
-
-function getManualTrades() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
-}
-function saveManualTrades(trades) {
-  localStorage.setItem(LS_KEY, JSON.stringify(trades));
-}
-
-let _modalMarket = '', _modalSymbol = '', _modalName = '', _modalSide = 'SELL';
-
-function openTradeModal(market, symbol, name) {
-  _modalMarket = market; _modalSymbol = symbol; _modalName = name;
-  document.getElementById('modalTitle').textContent = name + ' 체결내역 추가';
-  document.getElementById('modalPriceLabel').textContent = '체결 단가' + (market === 'KR' ? ' (원)' : ' (USD)');
-  // 오늘 날짜 기본값
-  const today = new Date();
-  document.getElementById('modalDate').value = today.toISOString().slice(0,10);
-  document.getElementById('modalQty').value = '';
-  document.getElementById('modalPrice').value = '';
-  setModalSide('SELL');
-  renderModalList();
-  document.getElementById('tradeModal').style.display = 'flex';
-}
-
-function closeTradeModal() {
-  document.getElementById('tradeModal').style.display = 'none';
-}
-
-function setModalSide(side) {
-  _modalSide = side;
-  document.getElementById('btnBuy').style.background  = side === 'BUY'  ? '#ff4d6a20' : 'var(--muted)';
-  document.getElementById('btnBuy').style.color       = side === 'BUY'  ? '#ff4d6a'   : 'var(--text-dim)';
-  document.getElementById('btnSell').style.background = side === 'SELL' ? '#4d9fff20' : 'var(--muted)';
-  document.getElementById('btnSell').style.color      = side === 'SELL' ? '#4d9fff'   : 'var(--text-dim)';
-}
-
-function saveTradeModal() {
-  const dateRaw = document.getElementById('modalDate').value;
-  const qty     = parseFloat(document.getElementById('modalQty').value);
-  const price   = parseFloat(document.getElementById('modalPrice').value);
-  if (!dateRaw || !qty || !price) { alert('날짜, 수량, 단가를 모두 입력해주세요.'); return; }
-  const date = dateRaw.replace(/-/g, '');
-  const trades = getManualTrades();
-  trades.push({ market: _modalMarket, symbol: _modalSymbol, name: _modalName, date, side: _modalSide, qty, price, source: 'manual' });
-  saveManualTrades(trades);
-  renderModalList();
-  // 손익 즉시 재계산
-  applyManualTrades();
-  document.getElementById('modalQty').value = '';
-  document.getElementById('modalPrice').value = '';
-}
-
-function deleteManualTrade(idx) {
-  const trades = getManualTrades();
-  trades.splice(idx, 1);
-  saveManualTrades(trades);
-  renderModalList();
-  applyManualTrades();
-}
-
-function renderModalList() {
-  const trades = getManualTrades().filter(t => t.symbol === _modalSymbol);
-  const allTrades = getManualTrades();
-  const div = document.getElementById('modalTradeList');
-  if (trades.length === 0) { div.innerHTML = '<div style="color:var(--text-dim);font-size:10px;">없음</div>'; return; }
-  div.innerHTML = trades.map(t => {
-    const idx = allTrades.findIndex(a => a.symbol === t.symbol && a.date === t.date && a.side === t.side && a.qty === t.qty && a.price === t.price);
-    const dateStr = t.date.slice(0,4)+'.'+t.date.slice(4,6)+'.'+t.date.slice(6,8);
-    const priceStr = t.market === 'KR' ? t.price.toLocaleString()+'원' : '$'+t.price.toLocaleString('en-US',{minimumFractionDigits:2});
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;">
-      <span style="color:${t.side==='SELL'?'#4d9fff':'#ff4d6a'}">${t.side==='SELL'?'매도':'매수'}</span>
-      <span style="color:var(--text)">${t.qty}주 @ ${priceStr}</span>
-      <span style="color:var(--text-dim)">${dateStr}</span>
-      <button onclick="deleteManualTrade(${idx})" style="background:none;border:none;color:#ff4d6a;cursor:pointer;font-size:11px;padding:0 4px;">✕</button>
-    </div>`;
-  }).join('');
-}
-
-// 모달 외부 클릭 시 닫기
-document.getElementById('tradeModal').addEventListener('click', function(e) {
-  if (e.target === this) closeTradeModal();
-});
-</script>
 </body>
 </html>
-
