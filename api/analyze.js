@@ -21,11 +21,11 @@ export default async function handler(req, res) {
 
   // 실시간 포트폴리오 정보 반영
   const samInfo = portfolio?.samsung
-    ? `70주, 매입단가 349,500원, 현재가 ${portfolio.samsung.currentPrice}, 수익률 ${portfolio.samsung.returnPct}%`
+    ? `${portfolio.samsung.qty || 70}주, 매입단가 ${portfolio.samsung.bep || 349500}원, 현재가 ${portfolio.samsung.currentPrice}, 수익률 ${portfolio.samsung.returnPct}%`
     : '70주, 매입단가 349,500원';
   const muInfo = portfolio?.micron
-    ? `30주, 매입단가 $1,040.60, 현재가 ${portfolio.micron.currentPrice}, 수익률 ${portfolio.micron.returnPct}%`
-    : '30주, 매입단가 $1,040.60';
+    ? `${portfolio.micron.qty || 15}주, 매입단가 $${portfolio.micron.bep || 1040.60}, 현재가 ${portfolio.micron.currentPrice}, 수익률 ${portfolio.micron.returnPct}%`
+    : '15주, 매입단가 $1,040.60';
 
   const prompt = `당신은 삼성전자(005930.KS)와 마이크론 테크놀로지(MU) 두 종목을 보유한 투자자의 포트폴리오 모니터링 AI입니다.
 
