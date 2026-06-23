@@ -636,7 +636,7 @@
     <div class="last-update" id="updateTime" style="margin-top:3px;">업데이트 중...</div>
     <div style="margin-top:4px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
       <span id="kisAccountBadge" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 10px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89640;align-items:center;gap:5px;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#00c896;animation:blink 1.5s infinite;flex-shrink:0;"></span>실시간 계좌 연결</span>
-      <button class="refresh-btn" onclick="fetchAll()">↻ 새로고침</button>
+      <button class="refresh-btn" onclick="fetchAll(); fetchKISAccount(true).then(applyKISAccount);">↻ 새로고침</button>
     </div>
   </div>
 </div>
@@ -786,8 +786,7 @@
         <span class="realized-val" id="samsungTotalPnl">-</span>
       </div>
       <div id="samsungTrades" style="margin-top:6px;"></div>
-    </div>
-    <!-- 1년 차트 -->
+      <button onclick="openTradeModal('KR','005930','삼성전자')" style="margin-top:8px;width:100%;padding:6px;background:var(--muted);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-size:10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">+ 체결내역 추가</button>
     <div style="margin-top:10px;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
       <canvas id="samsungChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
@@ -889,11 +888,7 @@
         <span class="realized-val" id="micronTotalPnl">-</span>
       </div>
       <div id="micronTrades" style="margin-top:6px;"></div>
-    </div>
-    <!-- 1년 차트 -->
-    <div style="margin-top:10px;">
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
-      <canvas id="micronChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
+      <button onclick="openTradeModal('US','MU','마이크론 테크놀로지')" style="margin-top:8px;width:100%;padding:6px;background:var(--muted);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-size:10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">+ 체결내역 추가</button>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
         <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
         <span>매수 2026.06.02 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">$1,040.60</span></span>
@@ -1141,6 +1136,9 @@ function applyTrades(data) {
   const { trades = [], realized = {} } = data;
   const krw = krwData?.price || 1520;
 
+  // 당일 체결내역 전역 저장 (applyKISAccount에서 잔고 보정용)
+  window._todayTrades = trades.filter(t => t.source === 'api_today');
+
   // ── 삼성전자 실현손익
   const sam = realized.samsung;
   if (sam) {
@@ -1223,6 +1221,9 @@ function applyTrades(data) {
 
   // 실현손익 반영 후 배너 즉시 갱신
   updateTotalBanner();
+
+  // 수동 입력 체결내역 합산 반영
+  applyManualTrades();
 }
 
 // ── 한국투자증권 계좌 자동 연동 ──
@@ -1231,7 +1232,7 @@ let kisAccountLoaded = false;
 // 전역 보유 데이터 (fetchAll에서 손익 계산에 사용)
 let kisData = {
   samsung: { qty: 70, avgPrice: 349500 },
-  micron:  { qty: 20, avgPrice: 1040.60 },  // 실제 보유 20주 (10주 익절 후)
+  micron:  { qty: 15, avgPrice: 1040.60 },  // 실제 보유 15주 (10주+5주 익절 후)
 };
 
 // 실현손익 전역 저장 (applyTrades에서 업데이트, fetchAll에서 총손익 계산에 사용)
@@ -1240,9 +1241,11 @@ let realizedPnL = {
   micron:  0,   // USD
 };
 
-async function fetchKISAccount() {
+async function fetchKISAccount(forceRefresh = false) {
   try {
-    const res = await fetch('/api/account');
+    // forceRefresh: ?t= 타임스탬프로 Vercel 캐시 무시
+    const url = forceRefresh ? `/api/account?t=${Date.now()}` : '/api/account';
+    const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.error) return null;
@@ -1260,7 +1263,12 @@ function applyKISAccount(account) {
   // ── 삼성전자 (005930)
   const samsung = domestic.find(h => h.symbol === '005930');
   if (samsung) {
-    kisData.samsung = { qty: samsung.qty, avgPrice: samsung.avgPrice };
+    // 당일 매도 체결 수량 차감 (T+1 정산 전 잔고 보정)
+    const todaySoldSam = (window._todayTrades || [])
+      .filter(t => t.symbol === '005930' && t.side === 'SELL')
+      .reduce((sum, t) => sum + t.qty, 0);
+    const actualQty = Math.max(0, samsung.qty - todaySoldSam);
+    kisData.samsung = { qty: actualQty, avgPrice: samsung.avgPrice };
 
     // 카드 내 보유수량·매입단가 텍스트 업데이트
     const samsungCard = document.querySelector('.card:has(#samsungPrice)') ||
@@ -1270,7 +1278,7 @@ function applyKISAccount(account) {
         const label = el.querySelector('label')?.textContent?.trim();
         const span  = el.querySelector('span');
         if (!span) return;
-        if (label === '보유수량') span.textContent = samsung.qty + '주';
+        if (label === '보유수량') span.textContent = actualQty + '주';
         if (label === '매입단가') span.textContent = fmt(samsung.avgPrice) + '원';
       });
     }
@@ -1279,7 +1287,12 @@ function applyKISAccount(account) {
   // ── 마이크론 (MU)
   const micron = overseas.find(h => h.symbol === 'MU');
   if (micron) {
-    kisData.micron = { qty: micron.qty, avgPrice: micron.avgPrice };
+    // 당일 매도 체결 수량 차감 (T+1 정산 전 잔고 보정)
+    const todaySoldMU = (window._todayTrades || [])
+      .filter(t => t.symbol === 'MU' && t.side === 'SELL')
+      .reduce((sum, t) => sum + t.qty, 0);
+    const actualQty = Math.max(0, micron.qty - todaySoldMU);
+    kisData.micron = { qty: actualQty, avgPrice: micron.avgPrice };
 
     const micronCard = document.querySelector('.card:has(#micronPrice)') ||
                        document.getElementById('micronPrice')?.closest('.card');
@@ -1288,7 +1301,7 @@ function applyKISAccount(account) {
         const label = el.querySelector('label')?.textContent?.trim();
         const span  = el.querySelector('span');
         if (!span) return;
-        if (label === '보유수량') span.textContent = micron.qty + '주';
+        if (label === '보유수량') span.textContent = actualQty + '주';
         if (label === '매입단가') span.textContent = '$' + micron.avgPrice.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
       });
     }
@@ -1433,7 +1446,6 @@ async function fetchAll() {
     const mEvalEl = document.getElementById('micronEvalPnl');
     if (mEvalEl) {
       const ep = (mu.price - kisData.micron.avgPrice) * kisData.micron.qty;
-      console.log('[MU evalPnl]', mu.price, kisData.micron.avgPrice, kisData.micron.qty, ep);
       mEvalEl.textContent = (ep >= 0 ? '+' : '') + '$' + Math.abs(ep).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
       mEvalEl.style.color = ep >= 0 ? '#ff4d6a' : '#4d9fff';
       const tp = document.getElementById('micronTotalPnl');
@@ -1873,8 +1885,180 @@ fetchKISAccount().then(applyKISAccount);
 fetchTrades();
 setInterval(fetchTrades, 6 * 60 * 60 * 1000);
 
+// 페이지 로딩 시 수동 체결내역 즉시 반영
+setTimeout(applyManualTrades, 500);
+
 // 5분마다 주가 자동 갱신
 setInterval(fetchAll, 300000);
+</script>
+<!-- ── 체결내역 직접 입력 모달 ── -->
+<div id="tradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#1a1a2e;border:1px solid var(--border);border-radius:12px;padding:24px;width:320px;max-width:90vw;">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;" id="modalTitle">체결내역 추가</div>
+
+    <div style="margin-bottom:12px;">
+      <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:4px;">구분</label>
+      <div style="display:flex;gap:8px;">
+        <button id="btnBuy" onclick="setModalSide('BUY')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:#ff4d6a20;color:#ff4d6a;font-size:11px;cursor:pointer;font-weight:700;">매수</button>
+        <button id="btnSell" onclick="setModalSide('SELL')" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--muted);color:var(--text-dim);font-size:11px;cursor:pointer;font-weight:700;">매도</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:4px;">날짜 (YYYY-MM-DD)</label>
+      <input id="modalDate" type="date" style="width:100%;padding:8px;background:var(--muted);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;box-sizing:border-box;">
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:4px;">수량 (주)</label>
+      <input id="modalQty" type="number" min="1" placeholder="10" style="width:100%;padding:8px;background:var(--muted);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;box-sizing:border-box;">
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:4px;" id="modalPriceLabel">체결 단가</label>
+      <input id="modalPrice" type="number" step="0.01" placeholder="1200.01" style="width:100%;padding:8px;background:var(--muted);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;box-sizing:border-box;">
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeTradeModal()" style="flex:1;padding:10px;background:var(--muted);border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:12px;cursor:pointer;">취소</button>
+      <button onclick="saveTradeModal()" style="flex:1;padding:10px;background:#7c5cfc;border:none;border-radius:6px;color:#fff;font-size:12px;cursor:pointer;font-weight:700;">저장</button>
+    </div>
+
+    <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;">저장된 체결내역</div>
+      <div id="modalTradeList" style="max-height:120px;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 체결내역 localStorage 관리 ──
+const LS_KEY = 'portfolio_manual_trades';
+
+function getManualTrades() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
+}
+function saveManualTrades(trades) {
+  localStorage.setItem(LS_KEY, JSON.stringify(trades));
+}
+
+let _modalMarket = '', _modalSymbol = '', _modalName = '', _modalSide = 'SELL';
+
+function openTradeModal(market, symbol, name) {
+  _modalMarket = market; _modalSymbol = symbol; _modalName = name;
+  document.getElementById('modalTitle').textContent = name + ' 체결내역 추가';
+  document.getElementById('modalPriceLabel').textContent = '체결 단가' + (market === 'KR' ? ' (원)' : ' (USD)');
+  // 오늘 날짜 기본값
+  const today = new Date();
+  document.getElementById('modalDate').value = today.toISOString().slice(0,10);
+  document.getElementById('modalQty').value = '';
+  document.getElementById('modalPrice').value = '';
+  setModalSide('SELL');
+  renderModalList();
+  document.getElementById('tradeModal').style.display = 'flex';
+}
+
+function closeTradeModal() {
+  document.getElementById('tradeModal').style.display = 'none';
+}
+
+function setModalSide(side) {
+  _modalSide = side;
+  document.getElementById('btnBuy').style.background  = side === 'BUY'  ? '#ff4d6a20' : 'var(--muted)';
+  document.getElementById('btnBuy').style.color       = side === 'BUY'  ? '#ff4d6a'   : 'var(--text-dim)';
+  document.getElementById('btnSell').style.background = side === 'SELL' ? '#4d9fff20' : 'var(--muted)';
+  document.getElementById('btnSell').style.color      = side === 'SELL' ? '#4d9fff'   : 'var(--text-dim)';
+}
+
+function saveTradeModal() {
+  const dateRaw = document.getElementById('modalDate').value;
+  const qty     = parseFloat(document.getElementById('modalQty').value);
+  const price   = parseFloat(document.getElementById('modalPrice').value);
+  if (!dateRaw || !qty || !price) { alert('날짜, 수량, 단가를 모두 입력해주세요.'); return; }
+  const date = dateRaw.replace(/-/g, '');
+  const trades = getManualTrades();
+  trades.push({ market: _modalMarket, symbol: _modalSymbol, name: _modalName, date, side: _modalSide, qty, price, source: 'manual' });
+  saveManualTrades(trades);
+  renderModalList();
+  // 손익 즉시 재계산
+  applyManualTrades();
+  document.getElementById('modalQty').value = '';
+  document.getElementById('modalPrice').value = '';
+}
+
+function deleteManualTrade(idx) {
+  const trades = getManualTrades();
+  trades.splice(idx, 1);
+  saveManualTrades(trades);
+  renderModalList();
+  applyManualTrades();
+}
+
+function renderModalList() {
+  const trades = getManualTrades().filter(t => t.symbol === _modalSymbol);
+  const allTrades = getManualTrades();
+  const div = document.getElementById('modalTradeList');
+  if (trades.length === 0) { div.innerHTML = '<div style="color:var(--text-dim);font-size:10px;">없음</div>'; return; }
+  div.innerHTML = trades.map(t => {
+    const idx = allTrades.findIndex(a => a.symbol === t.symbol && a.date === t.date && a.side === t.side && a.qty === t.qty && a.price === t.price);
+    const dateStr = t.date.slice(0,4)+'.'+t.date.slice(4,6)+'.'+t.date.slice(6,8);
+    const priceStr = t.market === 'KR' ? t.price.toLocaleString()+'원' : '$'+t.price.toLocaleString('en-US',{minimumFractionDigits:2});
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;">
+      <span style="color:${t.side==='SELL'?'#4d9fff':'#ff4d6a'}">${t.side==='SELL'?'매도':'매수'}</span>
+      <span style="color:var(--text)">${t.qty}주 @ ${priceStr}</span>
+      <span style="color:var(--text-dim)">${dateStr}</span>
+      <button onclick="deleteManualTrade(${idx})" style="background:none;border:none;color:#ff4d6a;cursor:pointer;font-size:11px;padding:0 4px;">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// 수동 입력 체결내역을 손익 계산에 반영
+function applyManualTrades() {
+  const manual = getManualTrades();
+
+  // 마이크론 — manual SELL + PRIOR_TRADES SELL 합산
+  const muSells = [
+    ...PRIOR_TRADES.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
+    ...manual.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
+  ];
+  realizedPnL.micron = muSells.reduce((sum, t) => sum + (t.price - 1040.5953) * t.qty, 0);
+
+  // 삼성전자 — manual SELL (API가 있으면 API 우선, 없으면 manual)
+  const samSells = manual.filter(t => t.symbol === '005930' && t.side === 'SELL');
+  if (samSells.length > 0 && realizedPnL.samsung === 0) {
+    realizedPnL.samsung = samSells.reduce((sum, t) => sum + (t.price - 349500) * t.qty, 0);
+  }
+
+  updateTotalBanner();
+
+  // 체결내역 목록 갱신
+  const allTrades = [
+    ...PRIOR_TRADES,
+    ...manual,
+  ];
+  renderTradeList('005930', allTrades, 'samsungTrades', 'KR');
+  renderTradeList('MU', allTrades, 'micronTrades', 'US');
+}
+
+function renderTradeList(symbol, trades, divId, market) {
+  const filtered = trades.filter(t => t.symbol === symbol).sort((a,b) => a.date.localeCompare(b.date));
+  const div = document.getElementById(divId);
+  if (!div || filtered.length === 0) return;
+  div.innerHTML = filtered.map(t => {
+    const dateStr = t.date.slice(0,4)+'.'+t.date.slice(4,6)+'.'+t.date.slice(6,8);
+    const priceStr = market === 'KR' ? t.price.toLocaleString()+'원' : '$'+parseFloat(t.price).toLocaleString('en-US',{minimumFractionDigits:2});
+    return `<div class="trade-item">
+      <span style="color:var(--text);font-weight:600;">${t.side==='SELL'?'매도':'매수'}</span>
+      <span>${t.qty}주 @ ${priceStr}</span>
+      <span>${dateStr}</span>
+    </div>`;
+  }).join('');
+}
+
+// 모달 외부 클릭 시 닫기
+document.getElementById('tradeModal').addEventListener('click', function(e) {
+  if (e.target === this) closeTradeModal();
+});
 </script>
 </body>
 </html>
