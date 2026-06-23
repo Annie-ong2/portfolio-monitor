@@ -1,11 +1,12 @@
 {
   "version": 2,
   "routes": [
-    { "src": "/api/quote",   "dest": "/api/quote.js"   },
-    { "src": "/api/news",    "dest": "/api/news.js"    },
-    { "src": "/api/analyze", "dest": "/api/analyze.js" },
-    { "src": "/api/account", "dest": "/api/account.js" },
-    { "src": "/api/trades",  "dest": "/api/trades.js"  },
-    { "src": "/(.*)",        "dest": "/index.html"     }
+    { "src": "/api/quote",       "dest": "/api/quote.js"       },
+    { "src": "/api/news",        "dest": "/api/news.js"        },
+    { "src": "/api/analyze",     "dest": "/api/analyze.js"     },
+    { "src": "/api/account",     "dest": "/api/account.js"     },
+    { "src": "/api/trades",      "dest": "/api/trades.js"      },
+    { "src": "/api/trades-save", "dest": "/api/trades-save.js" },
+    { "src": "/(.*)",            "dest": "/index.html"         }
   ]
 }
