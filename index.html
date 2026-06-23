@@ -1136,6 +1136,9 @@ function applyTrades(data) {
   const { trades = [], realized = {} } = data;
   const krw = krwData?.price || 1520;
 
+  // API에서 받아온 체결내역 전역 저장
+  _apiTrades = trades;
+
   // 당일 체결내역 전역 저장 (applyKISAccount에서 잔고 보정용)
   window._todayTrades = trades.filter(t => t.source === 'api_today');
 
@@ -1234,6 +1237,17 @@ let kisData = {
   samsung: { qty: 70, avgPrice: 349500 },
   micron:  { qty: 15, avgPrice: 1040.60 },  // 실제 보유 15주 (10주+5주 익절 후)
 };
+
+// 서버에서 받아온 체결내역 (applyTrades에서 저장)
+let _apiTrades = [];
+
+// 브라우저용 PRIOR_TRADES (서버 trades.js와 동일하게 유지)
+const PRIOR_TRADES = [
+  { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260602', side:'BUY',  qty:20, price:1040.5953 },
+  { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260604', side:'BUY',  qty:10, price:1040.5953 },
+  { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260616', side:'SELL', qty:10, price:1100.01   },
+  { market:'KR', symbol:'005930', name:'삼성전자',        date:'20260604', side:'BUY',  qty:70, price:349500    },
+];
 
 // 실현손익 전역 저장 (applyTrades에서 업데이트, fetchAll에서 총손익 계산에 사용)
 let realizedPnL = {
@@ -2015,29 +2029,51 @@ function renderModalList() {
 // 수동 입력 체결내역을 손익 계산에 반영
 function applyManualTrades() {
   const manual = getManualTrades();
+  const krw = krwData?.price || 1520;
 
-  // 마이크론 — manual SELL + PRIOR_TRADES SELL 합산
+  // 마이크론 — API trades의 SELL + manual SELL 합산
   const muSells = [
+    ..._apiTrades.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
     ...PRIOR_TRADES.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
     ...manual.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
   ];
-  realizedPnL.micron = muSells.reduce((sum, t) => sum + (t.price - 1040.5953) * t.qty, 0);
+  // 중복 제거 (날짜+수량+가격 기준)
+  const muSeen = new Set();
+  const muUniq = muSells.filter(t => {
+    const k = `${t.date}-${t.qty}-${t.price}`;
+    if (muSeen.has(k)) return false;
+    muSeen.add(k); return true;
+  });
+  realizedPnL.micron = muUniq.reduce((sum, t) => sum + (t.price - 1040.5953) * t.qty, 0);
 
-  // 삼성전자 — manual SELL (API가 있으면 API 우선, 없으면 manual)
-  const samSells = manual.filter(t => t.symbol === '005930' && t.side === 'SELL');
-  if (samSells.length > 0 && realizedPnL.samsung === 0) {
-    realizedPnL.samsung = samSells.reduce((sum, t) => sum + (t.price - 349500) * t.qty, 0);
+  // 삼성전자 — API로 실현손익 받아오는 중이면 그대로, manual SELL 있으면 추가
+  const samManualSells = manual.filter(t => t.symbol === '005930' && t.side === 'SELL');
+  if (samManualSells.length > 0) {
+    const samManualPnL = samManualSells.reduce((sum, t) => sum + (t.price - 349500) * t.qty, 0);
+    realizedPnL.samsung = (realizedPnL.samsung || 0) + samManualPnL;
   }
 
   updateTotalBanner();
 
-  // 체결내역 목록 갱신
-  const allTrades = [
-    ...PRIOR_TRADES,
-    ...manual,
-  ];
+  // 체결내역 목록 갱신 (API + PRIOR + manual 합산)
+  const allTrades = mergeTrades([..._apiTrades, ...PRIOR_TRADES, ...manual]);
   renderTradeList('005930', allTrades, 'samsungTrades', 'KR');
   renderTradeList('MU', allTrades, 'micronTrades', 'US');
+
+  // realized-box 표시
+  const sBox = document.getElementById('samsungRealized');
+  const mBox = document.getElementById('micronRealized');
+  if (sBox) sBox.style.display = 'block';
+  if (mBox) mBox.style.display = 'block';
+}
+
+function mergeTrades(trades) {
+  const seen = new Set();
+  return trades.filter(t => {
+    const k = `${t.date}-${t.symbol}-${t.side}-${t.qty}-${t.price}`;
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  }).sort((a,b) => a.date.localeCompare(b.date));
 }
 
 function renderTradeList(symbol, trades, divId, market) {
@@ -2062,3 +2098,4 @@ document.getElementById('tradeModal').addEventListener('click', function(e) {
 </script>
 </body>
 </html>
+
