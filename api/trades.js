@@ -3,10 +3,12 @@
 // 마이크론: Notion DB 기반 계산 (수동입력 포함)
 // 당일 체결: 국내/해외 당일 API 실시간 반영
 
-const KIS_BASE   = 'https://openapi.koreainvestment.com:9443';
+const KIS_BASE     = 'https://openapi.koreainvestment.com:9443';
 const NOTION_DB_ID = '9599e009-759e-4622-90c8-923f981db372';
 
 // Notion DB에서 거래내역 불러오기 (PRIOR_TRADES 대체)
+// 스키마: Name(title), date(text), market(text), symbol(text),
+//         qty(number), price(number), side(select), source(text)
 async function getNotionTrades() {
   const notionToken = process.env.NOTION_TOKEN;
   if (!notionToken) return { _error: 'NOTION_TOKEN 환경변수 없음' };
@@ -20,7 +22,7 @@ async function getNotionTrades() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sorts: [{ property: '날짜', direction: 'ascending' }],
+        sorts: [{ property: 'date', direction: 'ascending' }],
       }),
     });
     const data = await res.json();
@@ -31,14 +33,14 @@ async function getNotionTrades() {
     return data.results.map(p => {
       const props = p.properties;
       return {
-        market:  props['시장']?.select?.name || 'US',
-        symbol:  props['심볼']?.rich_text?.[0]?.plain_text || '',
-        name:    props['종목명']?.title?.[0]?.plain_text || '',
-        date:    (props['날짜']?.date?.start || '').replace(/-/g, ''),
-        side:    props['구분']?.select?.name || 'BUY',
-        qty:     props['수량']?.number || 0,
-        price:   props['단가']?.number || 0,
-        source:  props['출처']?.select?.name || 'prior',
+        market: props['market']?.rich_text?.[0]?.plain_text || 'US',
+        symbol: props['symbol']?.rich_text?.[0]?.plain_text || '',
+        name:   props['Name']?.title?.[0]?.plain_text || '',
+        date:   props['date']?.rich_text?.[0]?.plain_text || '',
+        side:   props['side']?.select?.name || 'BUY',
+        qty:    props['qty']?.number || 0,
+        price:  props['price']?.number || 0,
+        source: props['source']?.rich_text?.[0]?.plain_text || 'prior',
       };
     });
   } catch(e) {
