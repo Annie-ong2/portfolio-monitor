@@ -1,12 +1,50 @@
 // 한국투자증권 체결내역 + 실현손익
 // 삼성전자: TTTC8715R 기간별 실현손익 API (sll_qty>0 체크)
-// 마이크론: PRIOR_TRADES 기반 폴백 (TTTS3250R 빈응답으로 사용불가)
+// 마이크론: Notion DB 기반 계산 (수동입력 포함)
 // 당일 체결: 국내/해외 당일 API 실시간 반영
 
 const KIS_BASE   = 'https://openapi.koreainvestment.com:9443';
-const START_DATE = '20260602';
+const NOTION_DB_ID = '9599e009-759e-4622-90c8-923f981db372';
 
-// 기존 체결내역 (표시용 + 마이크론 실현손익 계산용)
+// Notion DB에서 거래내역 불러오기 (PRIOR_TRADES 대체)
+async function getNotionTrades() {
+  const notionToken = process.env.NOTION_TOKEN;
+  if (!notionToken) return null; // 없으면 폴백
+
+  try {
+    const res = await fetch(`https://api.notion.com/v1/databases/${NOTION_DB_ID}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${notionToken}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sorts: [{ property: '날짜', direction: 'ascending' }],
+      }),
+    });
+    const data = await res.json();
+    if (!data.results) return null;
+
+    return data.results.map(p => {
+      const props = p.properties;
+      return {
+        market:  props['시장']?.select?.name || 'US',
+        symbol:  props['심볼']?.rich_text?.[0]?.plain_text || '',
+        name:    props['종목명']?.title?.[0]?.plain_text || '',
+        date:    (props['날짜']?.date?.start || '').replace(/-/g, ''),
+        side:    props['구분']?.select?.name || 'BUY',
+        qty:     props['수량']?.number || 0,
+        price:   props['단가']?.number || 0,
+        source:  props['출처']?.select?.name || 'prior',
+      };
+    });
+  } catch(e) {
+    return null; // 오류 시 폴백
+  }
+}
+
+// 폴백용 PRIOR_TRADES (Notion 연결 실패 시)
 const PRIOR_TRADES = [
   { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260602', side:'BUY',  qty:20, price:1040.5953 },
   { market:'US', symbol:'MU', name:'마이크론 테크놀로지', date:'20260604', side:'BUY',  qty:10, price:1040.5953 },
@@ -44,13 +82,12 @@ function todayStr() {
 }
 
 // ── 국내주식 기간별 실현손익 (TTTC8715R)
-// sll_qty > 0 인 경우만 실현손익 인정 (수수료만 있는 경우 제외)
 async function getDomesticRealizedPnL(token, appKey, appSecret, accountNo) {
   const [acctNum, acctSuffix] = parseAccount(accountNo);
   const params = new URLSearchParams({
     CANO: acctNum, ACNT_PRDT_CD: acctSuffix || '01',
     SORT_DVSN: '00', PDNO: '',
-    INQR_STRT_DT: START_DATE, INQR_END_DT: todayStr(),
+    INQR_STRT_DT: '20260602', INQR_END_DT: todayStr(),
     CBLC_DVSN: '00',
     CTX_AREA_FK100: '', CTX_AREA_NK100: '',
   });
@@ -76,11 +113,10 @@ async function getDomesticRealizedPnL(token, appKey, appSecret, accountNo) {
   return { pnl: totalPnL, error: null };
 }
 
-// ── 마이크론 실현손익: PRIOR_TRADES 기반 계산
-// (TTTS3250R API 빈응답으로 사용불가 → 당일 매도는 oTodayTrades로 추가 반영)
-function calcMicronRealizedPnL(todayTrades) {
+// ── 마이크론 실현손익: Notion DB 기반 (폴백: PRIOR_TRADES)
+function calcMicronRealizedPnL(baseTrades, todayTrades) {
   const allSells = [
-    ...PRIOR_TRADES.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
+    ...baseTrades.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
     ...todayTrades.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
   ];
   return allSells.reduce((sum, t) => sum + (t.price - 1040.5953) * t.qty, 0);
@@ -164,6 +200,11 @@ export default async function handler(req, res) {
   if (!acc1.key) return res.status(500).json({ error:'KIS 환경변수 미설정' });
 
   try {
+    // Notion DB에서 거래내역 로드 (실패 시 PRIOR_TRADES 폴백)
+    const notionTrades = await getNotionTrades();
+    const baseTrades = notionTrades || PRIOR_TRADES;
+    const notionSource = notionTrades ? 'notion' : 'fallback';
+
     const [t1, t2] = await Promise.allSettled([
       getToken(acc1.key, acc1.secret, 1),
       acc2.key ? getToken(acc2.key, acc2.secret, 2) : Promise.resolve(null),
@@ -183,22 +224,24 @@ export default async function handler(req, res) {
     const oToday = oTodayR.status==='fulfilled'  ? oTodayR.value : [];
     const dToday = dTodayR.status==='fulfilled'  ? dTodayR.value : [];
 
-    // 삼성전자: API 실현손익 (오류 시 0)
+    // 삼성전자: API 실현손익
     const samsungPnL = dRzd.error ? 0 : dRzd.pnl;
 
-    // 마이크론: PRIOR_TRADES + 당일 매도 합산
-    const micronPnL = calcMicronRealizedPnL(oToday);
+    // 마이크론: Notion DB 매도 내역 기반 계산 (당일 매도 추가 반영)
+    const micronPnL = calcMicronRealizedPnL(baseTrades, oToday);
 
-    const allOTrades = mergeTrades([...PRIOR_TRADES.filter(t=>t.market==='US'), ...oToday]);
-    const allDTrades = mergeTrades([...PRIOR_TRADES.filter(t=>t.market==='KR'), ...dToday]);
+    const allOTrades = mergeTrades([...baseTrades.filter(t=>t.market==='US'), ...oToday]);
+    const allDTrades = mergeTrades([...baseTrades.filter(t=>t.market==='KR'), ...dToday]);
 
     return res.status(200).json({
       trades: [...allDTrades, ...allOTrades],
       realized: {
         samsung: { realizedPnL: samsungPnL, source: dRzd.error ? 'none' : 'api' },
-        micron:  { realizedPnL: micronPnL,  source: oToday.some(t=>t.symbol==='MU'&&t.side==='SELL') ? 'api+prior' : 'prior' },
+        micron:  { realizedPnL: micronPnL,  source: oToday.some(t=>t.symbol==='MU'&&t.side==='SELL') ? 'notion+api_today' : notionSource },
       },
       debug: {
+        notionTradeCount: notionTrades ? notionTrades.length : null,
+        notionSource,
         dRzdError:   dRzd.error  || null,
         oTodayCount: oToday.length,
         dTodayCount: dToday.length,
@@ -209,3 +252,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error:e.message });
   }
 }
+
