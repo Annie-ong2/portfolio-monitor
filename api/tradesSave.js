@@ -1,7 +1,7 @@
 // 체결내역 저장/조회 — 노션 DB 연동
 // 노션 DB ID: 41c58398-43ad-46b2-8e73-e7d0bca6a833
 
-const NOTION_DB = '41c58398-43ad-46b2-8e73-e7d0bca6a833';
+const NOTION_DB = '9599e009-759e-4622-90c8-923f981db372';
 const NOTION_API = 'https://api.notion.com/v1';
 
 function notionHeaders() {
