@@ -9,7 +9,7 @@ const NOTION_DB_ID = '9599e009-759e-4622-90c8-923f981db372';
 // Notion DB에서 거래내역 불러오기 (PRIOR_TRADES 대체)
 async function getNotionTrades() {
   const notionToken = process.env.NOTION_TOKEN;
-  if (!notionToken) return null; // 없으면 폴백
+  if (!notionToken) return { _error: 'NOTION_TOKEN 환경변수 없음' };
 
   try {
     const res = await fetch(`https://api.notion.com/v1/databases/${NOTION_DB_ID}/query`, {
@@ -24,7 +24,9 @@ async function getNotionTrades() {
       }),
     });
     const data = await res.json();
-    if (!data.results) return null;
+    if (data.status === 401) return { _error: `Notion 인증 실패: ${data.message}` };
+    if (data.status === 404) return { _error: `Notion DB 없음: ${data.message}` };
+    if (!data.results)       return { _error: `Notion 응답 이상: ${JSON.stringify(data).slice(0,100)}` };
 
     return data.results.map(p => {
       const props = p.properties;
@@ -40,7 +42,7 @@ async function getNotionTrades() {
       };
     });
   } catch(e) {
-    return null; // 오류 시 폴백
+    return { _error: e.message };
   }
 }
 
@@ -201,8 +203,10 @@ export default async function handler(req, res) {
 
   try {
     // Notion DB에서 거래내역 로드 (실패 시 PRIOR_TRADES 폴백)
-    const notionTrades = await getNotionTrades();
-    const baseTrades = notionTrades || PRIOR_TRADES;
+    const notionResult = await getNotionTrades();
+    const notionError  = notionResult?._error || null;
+    const notionTrades = notionError ? null : notionResult;
+    const baseTrades   = notionTrades || PRIOR_TRADES;
     const notionSource = notionTrades ? 'notion' : 'fallback';
 
     const [t1, t2] = await Promise.allSettled([
@@ -224,11 +228,8 @@ export default async function handler(req, res) {
     const oToday = oTodayR.status==='fulfilled'  ? oTodayR.value : [];
     const dToday = dTodayR.status==='fulfilled'  ? dTodayR.value : [];
 
-    // 삼성전자: API 실현손익
     const samsungPnL = dRzd.error ? 0 : dRzd.pnl;
-
-    // 마이크론: Notion DB 매도 내역 기반 계산 (당일 매도 추가 반영)
-    const micronPnL = calcMicronRealizedPnL(baseTrades, oToday);
+    const micronPnL  = calcMicronRealizedPnL(baseTrades, oToday);
 
     const allOTrades = mergeTrades([...baseTrades.filter(t=>t.market==='US'), ...oToday]);
     const allDTrades = mergeTrades([...baseTrades.filter(t=>t.market==='KR'), ...dToday]);
@@ -242,6 +243,7 @@ export default async function handler(req, res) {
       debug: {
         notionTradeCount: notionTrades ? notionTrades.length : null,
         notionSource,
+        notionError,
         dRzdError:   dRzd.error  || null,
         oTodayCount: oToday.length,
         dTodayCount: dToday.length,
