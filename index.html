@@ -1173,37 +1173,25 @@ function renderTradeList(symbol, trades, divId, market) {
 }
 
 function applyManualTrades() {
-  const manual = getManualTrades();
+  // ── Notion DB가 source of truth
+  // _apiTrades = /api/trades 응답 (Notion DB 기반, prior+manual 모두 포함)
+  // realizedPnL은 applyTrades()에서 이미 Notion 기반으로 세팅됨 → 덮어쓰지 않음
 
-  // ── 마이크론 실현손익
-  const muSells = mergeTrades([
-    ...PRIOR_TRADES.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
-    ..._apiTrades.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
-    ...manual.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
-  ]);
-  realizedPnL.micron = muSells.reduce((sum, t) => sum + (t.price - 1040.5953) * t.qty, 0);
+  // ── 보유수량 재계산: _apiTrades(Notion) 기준
+  // Notion에 저장된 전체 매수 - 전체 매도
+  const notionBoughtMU  = _apiTrades.filter(t => t.symbol === 'MU'     && t.side === 'BUY').reduce((s,t) => s+t.qty, 0);
+  const notionBoughtSam = _apiTrades.filter(t => t.symbol === '005930' && t.side === 'BUY').reduce((s,t) => s+t.qty, 0);
+  const notionSoldMU    = _apiTrades.filter(t => t.symbol === 'MU'     && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
+  const notionSoldSam   = _apiTrades.filter(t => t.symbol === '005930' && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
 
-  // ── 삼성전자 실현손익
-  // API(TTTC8715R)가 반영된 경우 → API 값 우선 (manual 무시하여 중복 방지)
-  // API 미반영(0원)인 경우 → manual 합산
-  const samManualPnL = manual
-    .filter(t => t.symbol === '005930' && t.side === 'SELL')
-    .reduce((sum, t) => sum + (t.price - 349500) * t.qty, 0);
-  const apiHasSamsungPnL = (window._baseSamsungPnL || 0) > 0;
-  realizedPnL.samsung = apiHasSamsungPnL
-    ? (window._baseSamsungPnL || 0)   // API 반영됨 → API만 사용
-    : samManualPnL;                    // API 미반영 → manual 사용
+  // _apiTrades가 비어있으면 (아직 로딩 안 됨) PRIOR_TRADES 폴백
+  const totalBoughtMU  = notionBoughtMU  || PRIOR_TRADES.filter(t => t.symbol === 'MU'     && t.side === 'BUY').reduce((s,t) => s+t.qty, 0);
+  const totalBoughtSam = notionBoughtSam || PRIOR_TRADES.filter(t => t.symbol === '005930' && t.side === 'BUY').reduce((s,t) => s+t.qty, 0);
+  const totalSoldMU    = notionSoldMU    || PRIOR_TRADES.filter(t => t.symbol === 'MU'     && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
+  const totalSoldSam   = notionSoldSam   || 0;
 
-  // ── 보유수량 재계산 (전체 매수 - PRIOR 매도 - manual 매도)
-  const totalBoughtMU  = PRIOR_TRADES.filter(t => t.symbol === 'MU'     && t.side === 'BUY').reduce((s,t) => s+t.qty, 0);
-  const totalBoughtSam = PRIOR_TRADES.filter(t => t.symbol === '005930' && t.side === 'BUY').reduce((s,t) => s+t.qty, 0);
-  const priorSoldMU    = PRIOR_TRADES.filter(t => t.symbol === 'MU'     && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
-  const priorSoldSam   = PRIOR_TRADES.filter(t => t.symbol === '005930' && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
-  const manualSoldMU   = manual.filter(t => t.symbol === 'MU'     && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
-  const manualSoldSam  = manual.filter(t => t.symbol === '005930' && t.side === 'SELL').reduce((s,t) => s+t.qty, 0);
-
-  const actualMU  = Math.max(0, totalBoughtMU  - priorSoldMU  - manualSoldMU);
-  const actualSam = Math.max(0, totalBoughtSam - priorSoldSam - manualSoldSam);
+  const actualMU  = Math.max(0, totalBoughtMU  - totalSoldMU);
+  const actualSam = Math.max(0, totalBoughtSam - totalSoldSam);
 
   kisData.micron.qty  = actualMU;
   kisData.samsung.qty = actualSam;
@@ -1232,7 +1220,10 @@ function applyManualTrades() {
 
   updateTotalBanner();
 
-  const allTrades = mergeTrades([...PRIOR_TRADES, ..._apiTrades, ...manual]);
+  // 체결내역 렌더링: Notion(_apiTrades) 우선, 없으면 PRIOR_TRADES 폴백
+  const allTrades = _apiTrades.length > 0
+    ? mergeTrades(_apiTrades)
+    : mergeTrades(PRIOR_TRADES);
   renderTradeList('005930', allTrades, 'samsungTrades', 'KR');
   renderTradeList('MU',     allTrades, 'micronTrades',  'US');
 
@@ -2086,11 +2077,8 @@ function renderModalList() {
   }).join('');
 }
 
-// 페이지 로딩 시 노션에서 manual 체결내역 조회 후 반영
-fetchManualTrades().then(trades => {
-  saveManualTrades(trades);
-  applyManualTrades();
-});
+// Notion DB가 source of truth → fetchTrades()에서 모든 체결내역 로딩
+// localStorage fetchManualTrades는 더 이상 사용하지 않음
 
 // 5분마다 주가 자동 갱신
 setInterval(fetchAll, 300000);
@@ -2144,4 +2132,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </body>
 </html>
+
 
