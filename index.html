@@ -40,10 +40,12 @@
     font-size: 13px;
     min-height: 100vh;
     padding: 16px;
+    overflow-x: hidden;
   }
 
   .page-wrap {
     max-width: 960px;
+    width: 100%;
     margin: 0 auto;
   }
 
@@ -625,10 +627,12 @@
 
   /* ── 반응형 ── */
   @media (max-width: 600px) {
+    body { padding: 10px; }
     .grid-2, .grid-3 { grid-template-columns: 1fr; }
     .macro-grid { grid-template-columns: repeat(2, 1fr); }
     .pnl-items { gap: 14px; }
     .current-price { font-size: 18px; }
+    .grid-4col { grid-template-columns: 1fr 1fr !important; }
   }
 </style>
 </head>
@@ -726,7 +730,7 @@
       <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>
       <span id="samsungQuoteTime">체결 시간 조회 중...</span>
     </div>
-    <div class="stock-meta" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+    <div class="stock-meta grid-4col" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="meta-item">
         <label>보유수량</label>
         <span id="samsungQtySpan">70주</span>
@@ -745,7 +749,7 @@
       </div>
     </div>
     <!-- 익절/손절 테이블 -->
-    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
+    <div class="grid-4col" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
       <div class="meta-item">
         <label style="color:#ff4d6a;">1차 익절(예상)</label>
         <span style="color:#ff4d6a;font-family:'IBM Plex Mono',monospace;font-size:11px;">380,000원</span>
@@ -829,7 +833,7 @@
       <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
       <span id="micronQuoteTime">체결 시간 조회 중...</span>
     </div>
-    <div class="stock-meta" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+    <div class="stock-meta grid-4col" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="meta-item">
         <label>보유수량</label>
         <span id="micronQtySpan">15주</span>
@@ -848,7 +852,7 @@
       </div>
     </div>
     <!-- 익절/손절 테이블 -->
-    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
+    <div class="grid-4col" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
       <div class="meta-item">
         <label style="color:#ff4d6a;">1차 익절(예상)</label>
         <span style="color:#ff4d6a;font-family:'IBM Plex Mono',monospace;font-size:11px;">$1,100.00</span>
