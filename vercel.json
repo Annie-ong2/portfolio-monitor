@@ -5,7 +5,7 @@
     { "src": "public/index.html", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/trades-save", "dest": "/api/trades-save.js" },
+    { "src": "/api/tradesSave",  "dest": "/api/tradesSave.js"  },
     { "src": "/api/trades",      "dest": "/api/trades.js"      },
     { "src": "/api/quote",       "dest": "/api/quote.js"       },
     { "src": "/api/news",        "dest": "/api/news.js"        },
