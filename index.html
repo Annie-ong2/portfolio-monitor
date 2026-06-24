@@ -6,7 +6,7 @@
 <title>포트폴리오 모니터</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap');
- 
+
   :root {
     --bg:        #0a0c10;
     --surface:   #111318;
@@ -1975,7 +1975,7 @@ setInterval(fetchTrades, 6 * 60 * 60 * 1000);
 
 async function fetchManualTrades() {
   try {
-    const res = await fetch('/api/trades-save');
+    const res = await fetch('/api/tradesSave');
     if (!res.ok) throw new Error('조회 실패');
     const data = await res.json();
     const manual = (data.trades || []).filter(t => t.source === 'manual');
@@ -2024,7 +2024,7 @@ async function saveTradeModal() {
   if (btn) { btn.textContent = '저장 중...'; btn.disabled = true; }
 
   try {
-    const res = await fetch('/api/trades-save', {
+    const res = await fetch('/api/tradesSave', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ market: _modalMarket, symbol: _modalSymbol, name: _modalName, date, side: _modalSide, qty, price }),
@@ -2052,7 +2052,7 @@ async function deleteManualTrade(idx) {
   if (!trade) return;
   try {
     if (trade.id) {
-      await fetch('/api/trades-save', {
+      await fetch('/api/tradesSave', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: trade.id }),
@@ -2144,3 +2144,4 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </body>
 </html>
+
