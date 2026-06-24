@@ -74,16 +74,27 @@ JSON만 응답 (다른 텍스트 없이):
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
 
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(`Claude API 오류 ${response.status}: ${errData.error?.message || response.statusText}`);
+    }
+
     const data = await response.json();
     const raw = data.content?.map(c => c.text || '').join('') || '';
     const clean = raw.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(clean);
+    } catch(parseErr) {
+      throw new Error(`JSON 파싱 실패: ${clean.slice(0, 100)}`);
+    }
 
     return res.status(200).json(parsed);
 
