@@ -42,6 +42,11 @@
     padding: 16px;
   }
 
+  .page-wrap {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
   /* ── 헤더 ── */
   .header {
     display: flex;
@@ -55,12 +60,16 @@
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     letter-spacing: .12em;
-    color: var(--text-dim);
+    color: var(--text-hi);
     text-transform: uppercase;
-  }
-  .header-title span {
-    color: var(--accent);
     font-weight: 600;
+  }
+  .header-title .version {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 9px;
+    letter-spacing: .08em;
+    margin-left: 6px;
   }
   .last-update {
     font-family: 'IBM Plex Mono', monospace;
@@ -624,11 +633,12 @@
 </style>
 </head>
 <body>
+<div class="page-wrap">
 
 <!-- 헤더 -->
 <div class="header">
   <div>
-    <div class="header-title">포트폴리오 <span>모니터</span></div>
+    <div class="header-title">포트폴리오 모니터<span class="version">v1.4</span></div>
     <div style="font-size:11px; color:var(--text-dim); margin-top:3px;">삼성전자 · 마이크론 테크놀로지</div>
   </div>
   <div style="text-align:right;">
@@ -787,12 +797,13 @@
       </div>
       <div id="samsungTrades" style="margin-top:6px;"></div>
       <button onclick="openTradeModal('KR','005930','삼성전자')" style="margin-top:8px;width:100%;padding:6px;background:var(--muted);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-size:10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">+ 체결내역 추가</button>
-    <div style="margin-top:10px;">
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
-      <canvas id="samsungChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
-        <span>매수 2026.06.04 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">349,500원</span></span>
+      <div style="margin-top:10px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
+        <canvas id="samsungChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
+          <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
+          <span>매수 2026.06.04 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">349,500원</span></span>
+        </div>
       </div>
     </div>
   </div>
@@ -889,6 +900,8 @@
       </div>
       <div id="micronTrades" style="margin-top:6px;"></div>
       <button onclick="openTradeModal('US','MU','마이크론 테크놀로지')" style="margin-top:8px;width:100%;padding:6px;background:var(--muted);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-size:10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">+ 체결내역 추가</button>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:10px;margin-bottom:4px;letter-spacing:.08em;">1년 가격 추이</div>
+      <canvas id="micronChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
         <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
         <span>매수 2026.06.02 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">$1,040.60</span></span>
@@ -1604,9 +1617,17 @@ function updateAI(sam, mu, krw, tnx) {
   }
 
   // D-day 업데이트
-  const dDay = Math.ceil((new Date('2026-06-24') - new Date()) / (1000 * 60 * 60 * 24));
+  const earningsDate = new Date('2026-06-24');
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  earningsDate.setHours(0,0,0,0);
+  const dDay = Math.ceil((earningsDate - today) / (1000 * 60 * 60 * 24));
   const dDayChip = document.getElementById('dDayChip');
-  if (dDayChip) dDayChip.textContent = `6/24 실적발표 D-${dDay}`;
+  if (dDayChip) {
+    if (dDay > 0) dDayChip.textContent = `6/24 실적발표 D-${dDay}`;
+    else if (dDay === 0) dDayChip.textContent = `6/24 실적발표 D-DAY`;
+    else dDayChip.textContent = `6/24 실적발표 완료 (+${Math.abs(dDay)}일)`;
+  }
 
   let text = '';
   if (signals.length === 0) {
@@ -1614,7 +1635,7 @@ function updateAI(sam, mu, krw, tnx) {
     document.getElementById('aiVerdictBadges').innerHTML = `
       <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89660;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)40;">포지션 유지</span>
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 D-${dDay}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 완료</span>
     `;
     text = `삼성전자는 HBM4 납기 정상 진행 중이며, 마이크론은 6월 24일 실적 발표가 핵심 촉매입니다. 패닉셀 구간에서는 홀드를 유지하고, 논리 훼손 신호 발생 전까지 기계적 손절은 지양합니다. 환율 1,550원 돌파 여부와 외국인 수급 방향을 매일 확인하세요.`;
   } else {
@@ -1772,9 +1793,10 @@ function updateHoldingBar() {
 const NEWS_SOURCES = [
   { url: 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=MU&region=US&lang=en-US', label: 'Yahoo·MU' },
   { url: 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=005930.KS&region=US&lang=en-US', label: 'Yahoo·삼성' },
-  { url: 'https://news.google.com/rss/search?q=semiconductor+AI+chip+geopolitics&hl=en&gl=US&ceid=US:en', label: 'Google·반도체' },
+  { url: 'https://news.google.com/rss/search?q=Micron+earnings+HBM+results&hl=en&gl=US&ceid=US:en', label: 'Google·MU실적' },
+  { url: 'https://news.google.com/rss/search?q=semiconductor+AI+chip+memory&hl=en&gl=US&ceid=US:en', label: 'Google·반도체' },
   { url: 'https://news.google.com/rss/search?q=Trump+semiconductor+China+tariff&hl=en&gl=US&ceid=US:en', label: 'Google·트럼프' },
-  { url: 'https://news.google.com/rss/search?q=SpaceX+IPO+AI+investment&hl=en&gl=US&ceid=US:en', label: 'Google·자금이동' },
+  { url: 'https://news.google.com/rss/search?q=Samsung+electronics+memory+chip&hl=en&gl=US&ceid=US:en', label: 'Google·삼성' },
 ];
 
 async function fetchNewsHeadlines() {
@@ -1964,6 +1986,10 @@ fetchKISAccount().then(applyKISAccount);
 fetchTrades();
 setInterval(fetchTrades, 6 * 60 * 60 * 1000);
 
+// AI 이슈 자동 스캔 — 페이지 로딩 시 1회 + 30분마다 갱신
+setTimeout(() => runNewsScan(), 3000); // 시세 로딩 완료 후 3초 뒤 실행
+setInterval(() => runNewsScan(), 30 * 60 * 1000); // 30분마다 재스캔
+
 async function fetchManualTrades() {
   try {
     const res = await fetch('/api/tradesSave');
@@ -2023,11 +2049,9 @@ async function saveTradeModal() {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || '저장 실패');
 
-    const trades = getManualTrades();
-    trades.push({ id: data.id, market: _modalMarket, symbol: _modalSymbol, name: _modalName, date, side: _modalSide, qty, price, source: 'manual' });
-    saveManualTrades(trades);
+    // Notion이 source of truth → fetchTrades로 최신 데이터 다시 로드
+    await fetchTrades();
     renderModalList();
-    applyManualTrades();
     document.getElementById('modalQty').value = '';
     document.getElementById('modalPrice').value = '';
   } catch(e) {
@@ -2083,15 +2107,16 @@ function renderModalList() {
 // 5분마다 주가 자동 갱신
 setInterval(fetchAll, 300000);
 
-// 모달 외부 클릭 시 닫기 (DOM 로드 후 실행)
-document.addEventListener('DOMContentLoaded', function() {
+// 모달 외부 클릭 시 닫기
+window.addEventListener('load', function() {
   const modal = document.getElementById('tradeModal');
   if (modal) modal.addEventListener('click', function(e) {
     if (e.target === this) closeTradeModal();
   });
 });
 </script>
-<!-- ── 체결내역 직접 입력 모달 ── --> style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;">
+<!-- ── 체결내역 직접 입력 모달 ── -->
+<div id="tradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#1a1a2e;border:1px solid var(--border);border-radius:12px;padding:24px;width:320px;max-width:90vw;">
     <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;" id="modalTitle">체결내역 추가</div>
 
@@ -2130,6 +2155,7 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 
+</div><!-- /.page-wrap -->
 </body>
 </html>
 
