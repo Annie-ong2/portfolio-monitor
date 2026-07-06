@@ -645,7 +645,7 @@
 <!-- 헤더 -->
 <div class="header">
   <div>
-    <div class="header-title">포트폴리오 모니터<span class="version">v1.4</span></div>
+    <div class="header-title">포트폴리오 모니터<span class="version">v1.4.2</span></div>
     <div style="font-size:11px; color:var(--text-dim); margin-top:3px;">삼성전자 · 마이크론 테크놀로지</div>
   </div>
   <div style="text-align:right;">
@@ -653,7 +653,7 @@
     <div class="last-update" id="updateTime" style="margin-top:3px;">업데이트 중...</div>
     <div style="margin-top:4px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
       
-      <button class="refresh-btn" onclick="fetchAll(); fetchKISAccount(true).then(applyKISAccount);">↻ 새로고침</button>
+      <button class="refresh-btn" onclick="fetchAll(); fetchKISAccount(true).then(applyKISAccount); runNewsScan();">↻ 새로고침</button>
     </div>
   </div>
 </div>
@@ -806,7 +806,7 @@
       <button onclick="openTradeModal('KR','005930','삼성전자')" style="margin-top:8px;width:100%;padding:6px;background:var(--muted);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-size:10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">+ 체결내역 추가</button>
       <div style="margin-top:10px;">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.08em;">1년 가격 추이</div>
-        <canvas id="samsungChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
+        <canvas id="samsungChart" style="width:100%;max-width:100%;height:80px;display:block;box-sizing:border-box;" height="80"></canvas>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
           <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
           <span>매수 2026.06.04 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">349,500원</span></span>
@@ -908,7 +908,7 @@
       <div id="micronTrades" style="margin-top:6px;"></div>
       <button onclick="openTradeModal('US','MU','마이크론 테크놀로지')" style="margin-top:8px;width:100%;padding:6px;background:var(--muted);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-size:10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;">+ 체결내역 추가</button>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:10px;margin-bottom:4px;letter-spacing:.08em;">1년 가격 추이</div>
-      <canvas id="micronChart" style="width:100%;height:80px;display:block;" height="80"></canvas>
+      <canvas id="micronChart" style="width:100%;max-width:100%;height:80px;display:block;box-sizing:border-box;" height="80"></canvas>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
         <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
         <span>매수 2026.06.02 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">$1,040.60</span></span>
@@ -1229,14 +1229,16 @@ function applyManualTrades() {
   const samTotal = realizedPnL.samsung + samEval;
 
   const rMu = document.getElementById('micronRealizedPnl');
-  if (rMu) { rMu.textContent = (realizedPnL.micron >= 0 ? '+' : '') + '$' + Math.abs(realizedPnL.micron).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); rMu.style.color = realizedPnL.micron >= 0 ? '#ff4d6a' : '#4d9fff'; }
+  if (rMu) { rMu.textContent = (realizedPnL.micron >= 0 ? '+' : '-') + '$' + Math.abs(realizedPnL.micron).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); rMu.style.color = realizedPnL.micron >= 0 ? '#ff4d6a' : '#4d9fff'; }
+
   const tMu = document.getElementById('micronTotalPnl');
-  if (tMu) { tMu.textContent = (muTotal >= 0 ? '+' : '') + '$' + Math.abs(muTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); tMu.style.color = muTotal >= 0 ? '#ff4d6a' : '#4d9fff'; }
+  if (tMu) { tMu.textContent = (muTotal >= 0 ? '+' : '-') + '$' + Math.abs(muTotal).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); tMu.style.color = muTotal >= 0 ? '#ff4d6a' : '#4d9fff'; }
 
   const rSam = document.getElementById('samsungRealizedPnl');
-  if (rSam) { rSam.textContent = (realizedPnL.samsung >= 0 ? '+' : '') + Math.abs(Math.round(realizedPnL.samsung)).toLocaleString() + '원'; rSam.style.color = realizedPnL.samsung >= 0 ? '#ff4d6a' : '#4d9fff'; }
+  if (rSam) { rSam.textContent = sign(realizedPnL.samsung) + fmt(Math.abs(Math.round(realizedPnL.samsung))) + '원'; rSam.style.color = realizedPnL.samsung >= 0 ? '#ff4d6a' : '#4d9fff'; }
+
   const tSam = document.getElementById('samsungTotalPnl');
-  if (tSam) { tSam.textContent = (samTotal >= 0 ? '+' : '') + Math.abs(Math.round(samTotal)).toLocaleString() + '원'; tSam.style.color = samTotal >= 0 ? '#ff4d6a' : '#4d9fff'; }
+  if (tSam) { tSam.textContent = sign(samTotal) + fmt(Math.abs(Math.round(samTotal))) + '원'; tSam.style.color = samTotal >= 0 ? '#ff4d6a' : '#4d9fff'; }
 
   updateTotalBanner();
 
@@ -1327,17 +1329,17 @@ function applyTrades(data) {
 
     const rPnl = document.getElementById('micronRealizedPnl');
     if (rPnl) {
-      rPnl.textContent = (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      rPnl.textContent = sign(pnl) + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
       rPnl.style.color = pnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
     const ePnl = document.getElementById('micronEvalPnl');
     if (ePnl) {
-      ePnl.textContent = (evalPnl >= 0 ? '+' : '') + '$' + Math.abs(evalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      ePnl.textContent = sign(evalPnl) + '$' + Math.abs(evalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
       ePnl.style.color = evalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
     const tPnl = document.getElementById('micronTotalPnl');
     if (tPnl) {
-      tPnl.textContent = (totalPnl >= 0 ? '+' : '') + '$' + Math.abs(totalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      tPnl.textContent = sign(totalPnl) + '$' + Math.abs(totalPnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
       tPnl.style.color = totalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
 
@@ -1507,12 +1509,12 @@ async function fetchAll() {
     const sEvalEl = document.getElementById('samsungEvalPnl');
     if (sEvalEl) {
       const ep = (sam.price - kisData.samsung.avgPrice) * kisData.samsung.qty;
-      sEvalEl.textContent = (ep >= 0 ? '+' : '') + fmt(Math.round(ep)) + '원';
+      sEvalEl.textContent = sign(ep) + fmt(Math.abs(Math.round(ep))) + '원';
       sEvalEl.style.color = ep >= 0 ? '#ff4d6a' : '#4d9fff';
       const tp = document.getElementById('samsungTotalPnl');
       if (tp) {
         const total = ep + realizedPnL.samsung;
-        tp.textContent = (total >= 0 ? '+' : '') + fmt(Math.round(total)) + '원';
+        tp.textContent = sign(total) + fmt(Math.abs(Math.round(total))) + '원';
         tp.style.color = total >= 0 ? '#ff4d6a' : '#4d9fff';
       }
       // 박스 표시 (실현손익 없어도 평가손익은 보여줌)
@@ -1531,8 +1533,7 @@ async function fetchAll() {
     document.getElementById('micronPrice').textContent  = fmtUSD(mu.price);
     document.getElementById('micronChange').className   = 'price-change ' + colorClass(mu.change);
     document.getElementById('micronChange').textContent =
-      (mu.change >= 0 ? '+' : '') + '$' + mu.change.toFixed(2) + ' (' + (mu.changePct >= 0 ? '+' : '') + mu.changePct.toFixed(2) + '%)';
-    document.getElementById('micronReturn').className   = 'price-change ' + colorClass(ret);
+      sign(mu.change) + '$' + Math.abs(mu.change).toFixed(2) + ' (' + sign(mu.changePct) + Math.abs(mu.changePct).toFixed(2) + '%)';    document.getElementById('micronReturn').className   = 'price-change ' + colorClass(ret);
     document.getElementById('micronReturn').textContent = sign(ret) + Math.abs(ret).toFixed(2) + '%';
     document.getElementById('micronEval').textContent   = fmtUSD(mu.price * QTY);
     document.getElementById('micronPnlAmt').className   = colorClass(pnl);
@@ -1545,12 +1546,12 @@ async function fetchAll() {
     const mEvalEl = document.getElementById('micronEvalPnl');
     if (mEvalEl) {
       const ep = (mu.price - kisData.micron.avgPrice) * kisData.micron.qty;
-      mEvalEl.textContent = (ep >= 0 ? '+' : '') + '$' + Math.abs(ep).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      mEvalEl.textContent = sign(ep) + '$' + Math.abs(ep).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
       mEvalEl.style.color = ep >= 0 ? '#ff4d6a' : '#4d9fff';
       const tp = document.getElementById('micronTotalPnl');
       if (tp) {
         const total = ep + realizedPnL.micron;
-        tp.textContent = (total >= 0 ? '+' : '') + '$' + Math.abs(total).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+        tp.textContent = sign(total) + '$' + Math.abs(total).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
         tp.style.color = total >= 0 ? '#ff4d6a' : '#4d9fff';
       }
       const box = document.getElementById('micronRealized');
@@ -1669,12 +1670,12 @@ function drawChart(canvasId, history, buyDateStr, bep, currency) {
     const style = card ? window.getComputedStyle(card) : null;
     const padL  = style ? parseFloat(style.paddingLeft)  || 16 : 16;
     const padR  = style ? parseFloat(style.paddingRight) || 16 : 16;
-    const W = card ? Math.max(card.clientWidth - padL - padR, 60) : 300;
+    const W = card ? Math.max(card.clientWidth - padL - padR, 60) : (canvas.parentElement?.clientWidth || 300);
     const H = 80;
 
     canvas.width        = W * dpr;
     canvas.height       = H * dpr;
-    canvas.style.width  = W + 'px';
+    // style.width는 CSS width:100%에 맡김 — JS에서 강제 세팅 안 함
     canvas.style.height = H + 'px';
 
     const ctx = canvas.getContext('2d');
