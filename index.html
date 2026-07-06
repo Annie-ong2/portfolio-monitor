@@ -930,9 +930,9 @@
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;" id="aiVerdictBadges">
     <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89660;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
     <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)40;">포지션 유지</span>
-    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 D-14</span>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip"></span>
   </div>
-  <div class="ai-content" id="aiContent">분석 로딩 중...</div>
+  <div class="ai-content" id="aiContent">페이지 로딩 후 자동 분석됩니다...</div>
 </div>
 
 <!-- 시장 온도계 -->
@@ -1533,7 +1533,8 @@ async function fetchAll() {
     document.getElementById('micronPrice').textContent  = fmtUSD(mu.price);
     document.getElementById('micronChange').className   = 'price-change ' + colorClass(mu.change);
     document.getElementById('micronChange').textContent =
-      sign(mu.change) + '$' + Math.abs(mu.change).toFixed(2) + ' (' + sign(mu.changePct) + Math.abs(mu.changePct).toFixed(2) + '%)';    document.getElementById('micronReturn').className   = 'price-change ' + colorClass(ret);
+      sign(mu.change) + '$' + Math.abs(mu.change).toFixed(2) + ' (' + sign(mu.changePct) + Math.abs(mu.changePct).toFixed(2) + '%)';
+    document.getElementById('micronReturn').className   = 'price-change ' + colorClass(ret);
     document.getElementById('micronReturn').textContent = sign(ret) + Math.abs(ret).toFixed(2) + '%';
     document.getElementById('micronEval').textContent   = fmtUSD(mu.price * QTY);
     document.getElementById('micronPnlAmt').className   = colorClass(pnl);
@@ -1624,31 +1625,34 @@ function updateAI(sam, mu, krw, tnx) {
     if (tnx && tnx.price > 5.0) signals.push('미 10년물 5% 초과 — 성장주 밸류에이션 부담');
   }
 
-  // D-day 업데이트
+  // D-day 계산
   const earningsDate = new Date('2026-06-24');
   const today = new Date();
   today.setHours(0,0,0,0);
   earningsDate.setHours(0,0,0,0);
   const dDay = Math.ceil((earningsDate - today) / (1000 * 60 * 60 * 24));
-  const dDayChip = document.getElementById('dDayChip');
-  if (dDayChip) {
-    if (dDay > 0) dDayChip.textContent = `6/24 실적발표 D-${dDay}`;
-    else if (dDay === 0) dDayChip.textContent = `6/24 실적발표 D-DAY`;
-    else dDayChip.textContent = `6/24 실적발표 완료 (+${Math.abs(dDay)}일)`;
-  }
 
   // ── 배지만 업데이트 (aiContent는 runNewsScan 전용 — 덮어쓰지 않음)
   if (signals.length === 0) {
     document.getElementById('aiVerdictBadges').innerHTML = `
       <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89660;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)40;">포지션 유지</span>
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 완료</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip"></span>
     `;
   } else {
     document.getElementById('aiVerdictBadges').innerHTML = `
       <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#ff4d6a20;color:#ff4d6a;border:1px solid #ff4d6a60;font-weight:700;letter-spacing:.06em;animation:alertPulse 2s infinite;">⚠ 논리 훼손 신호</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--yellow-dim);color:var(--yellow);border:1px solid var(--yellow)40;">즉시 점검 필요</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip"></span>
     `;
+  }
+
+  // 배지 innerHTML 재생성 후 dDayChip 텍스트 설정
+  const dDayChipEl = document.getElementById('dDayChip');
+  if (dDayChipEl) {
+    if (dDay > 0) dDayChipEl.textContent = `6/24 실적발표 D-${dDay}`;
+    else if (dDay === 0) dDayChipEl.textContent = `6/24 실적발표 D-DAY`;
+    else dDayChipEl.textContent = `6/24 실적발표 완료 (+${Math.abs(dDay)}일)`;
   }
 }
 
@@ -1861,22 +1865,11 @@ async function runNewsScan() {
   const headlines = await fetchNewsHeadlines();
 
   if (headlines.length === 0) {
-    status.textContent = '뉴스 수집 실패 — 잠시 후 재시도 버튼을 눌러주세요';
-    btn.disabled = false;
-    btn.textContent = '↻ 재시도';
-    dot.style.background = 'var(--red)';
-    document.getElementById('alertContainer').innerHTML = `
-      <div class="empty-alert" style="color:var(--yellow)">
-        ⚠ 뉴스 수집에 실패했어요<br>
-        <span style="font-size:10px;color:var(--muted)">
-          네트워크 상태를 확인하고 재시도 버튼을 눌러주세요.<br>
-          반복 실패 시 VPN 환경이거나 프록시가 일시적으로 막힌 경우예요.
-        </span>
-      </div>`;
-    return;
+    // 뉴스 수집 실패해도 포트폴리오 정보만으로 Claude 분석 진행
+    status.innerHTML = '<span class="loading">뉴스 수집 실패 — 보유 현황 기반으로 분석 중...</span>';
+  } else {
+    status.innerHTML = `<span class="loading">② Claude가 ${headlines.length}개 뉴스 분석 중...</span>`;
   }
-
-  status.innerHTML = `<span class="loading">② Claude가 ${headlines.length}개 뉴스 분석 중...</span>`;
 
   // 2단계: 실시간 손익 계산 후 Claude 분석 요청
   const samRet   = samsungData ? ((samsungData.price - kisData.samsung.avgPrice) / kisData.samsung.avgPrice * 100).toFixed(2) : '-13.45';
@@ -1909,6 +1902,8 @@ async function runNewsScan() {
   } catch(e) {
     dot.style.background = 'var(--red)';
     status.textContent = 'Claude 분석 실패 — 잠시 후 재시도해주세요';
+    const aiContent = document.getElementById('aiContent');
+    if (aiContent) aiContent.textContent = 'Claude 분석에 실패했어요. 재시도 버튼을 눌러주세요.';
     document.getElementById('alertContainer').innerHTML = `
       <div class="empty-alert" style="color:var(--yellow)">
         ⚠ 분석에 실패했어요<br>
@@ -2185,5 +2180,4 @@ window.addEventListener('load', function() {
 </div><!-- /.page-wrap -->
 </body>
 </html>
-
 
