@@ -1637,25 +1637,19 @@ function updateAI(sam, mu, krw, tnx) {
     else dDayChip.textContent = `6/24 실적발표 완료 (+${Math.abs(dDay)}일)`;
   }
 
-  let text = '';
+  // ── 배지만 업데이트 (aiContent는 runNewsScan 전용 — 덮어쓰지 않음)
   if (signals.length === 0) {
-    // 전략 논리 유지 — 고정 초록색
     document.getElementById('aiVerdictBadges').innerHTML = `
       <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#00c89620;color:#00c896;border:1px solid #00c89660;font-weight:700;letter-spacing:.06em;">✓ 전략 논리 유지</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)40;">포지션 유지</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--accent)15;color:var(--accent);border:1px solid var(--accent)40;" id="dDayChip">6/24 실적발표 완료</span>
     `;
-    text = `삼성전자는 HBM4 납기 정상 진행 중이며, 마이크론은 6월 24일 실적 발표가 핵심 촉매입니다. 패닉셀 구간에서는 홀드를 유지하고, 논리 훼손 신호 발생 전까지 기계적 손절은 지양합니다. 환율 1,550원 돌파 여부와 외국인 수급 방향을 매일 확인하세요.`;
   } else {
-    // 훼손 신호 감지 — 고정 빨간색 경고
     document.getElementById('aiVerdictBadges').innerHTML = `
       <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 14px;border-radius:4px;background:#ff4d6a20;color:#ff4d6a;border:1px solid #ff4d6a60;font-weight:700;letter-spacing:.06em;animation:alertPulse 2s infinite;">⚠ 논리 훼손 신호</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;background:var(--yellow-dim);color:var(--yellow);border:1px solid var(--yellow)40;">즉시 점검 필요</span>
     `;
-    text = `<span style="color:#ff4d6a;font-weight:600;">⚠ 신호 감지:</span> ${signals.join(' / ')}. 매수 논리 훼손 여부를 즉시 점검하세요. 단, 패닉셀 여부를 먼저 판단하고 — 다음날 상당 부분 회복된다면 홀드를 유지합니다. 훼손 신호가 구조적이라면 분할 매도를 검토하세요.`;
   }
-
-  document.getElementById('aiContent').innerHTML = text;
 }
 
 // ── 1년 가격 추이 차트 ──
@@ -1928,7 +1922,13 @@ async function runNewsScan() {
 
 function renderAlerts(parsed, headlines) {
   const container = document.getElementById('alertContainer');
+  const aiContent = document.getElementById('aiContent');
   const alerts = parsed.alerts || [];
+
+  // AI 종합판단 카드 본문 업데이트
+  if (aiContent && parsed.summary) {
+    aiContent.innerHTML = parsed.summary;
+  }
 
   if (alerts.length === 0) {
     container.innerHTML = `
