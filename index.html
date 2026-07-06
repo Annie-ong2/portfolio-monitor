@@ -1154,11 +1154,11 @@ function updateTotalBanner() {
 
   const grandTotal   = samTotalWon + muTotalKrw;
 
-  document.getElementById('totalPnl').textContent = sign(grandTotal) + fmt(Math.round(grandTotal)) + '원';
+  document.getElementById('totalPnl').textContent = sign(grandTotal) + fmt(Math.abs(Math.round(grandTotal))) + '원';
   document.getElementById('totalPnl').className   = 'pnl-amount ' + colorClass(grandTotal);
 
   // 개별 배너
-  document.getElementById('samsungPnl').textContent = sign(samTotalWon) + fmt(Math.round(samTotalWon)) + '원';
+  document.getElementById('samsungPnl').textContent = sign(samTotalWon) + fmt(Math.abs(Math.round(samTotalWon))) + '원';
   document.getElementById('samsungPnl').className   = colorClass(samTotalWon);
 
   const muTotalUsd = muEvalPnl + realizedPnL.micron;
@@ -1287,17 +1287,17 @@ function applyTrades(data) {
 
     const rPnl = document.getElementById('samsungRealizedPnl');
     if (rPnl) {
-      rPnl.textContent  = (pnl >= 0 ? '+' : '') + fmt(Math.round(pnl)) + '원';
+      rPnl.textContent  = sign(pnl) + fmt(Math.abs(Math.round(pnl))) + '원';
       rPnl.style.color  = pnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
     const ePnl = document.getElementById('samsungEvalPnl');
     if (ePnl) {
-      ePnl.textContent = (evalPnl >= 0 ? '+' : '') + fmt(Math.round(evalPnl)) + '원';
+      ePnl.textContent = sign(evalPnl) + fmt(Math.abs(Math.round(evalPnl))) + '원';
       ePnl.style.color = evalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
     const tPnl = document.getElementById('samsungTotalPnl');
     if (tPnl) {
-      tPnl.textContent  = (totalPnl >= 0 ? '+' : '') + fmt(Math.round(totalPnl)) + '원';
+      tPnl.textContent  = sign(totalPnl) + fmt(Math.abs(Math.round(totalPnl))) + '원';
       tPnl.style.color  = totalPnl >= 0 ? '#ff4d6a' : '#4d9fff';
     }
 
@@ -1453,7 +1453,7 @@ function fmtUSD(n) {
   return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 function colorClass(n) { return n >= 0 ? 'up' : 'down'; }
-function sign(n) { return n >= 0 ? '+' : ''; }
+function sign(n) { return n >= 0 ? '+' : '-'; }
 
 async function fetchAll() {
   document.getElementById('updateTime').innerHTML = '<span class="loading">업데이트 중...</span>';
@@ -1480,12 +1480,12 @@ async function fetchAll() {
 
     document.getElementById('samsungPrice').textContent  = fmt(sam.price) + '원';
     document.getElementById('samsungChange').className   = 'price-change ' + colorClass(sam.change);
-    document.getElementById('samsungChange').textContent = sign(sam.change) + fmt(sam.change) + '원 (' + sign(sam.changePct) + sam.changePct.toFixed(2) + '%)';
+    document.getElementById('samsungChange').textContent = sign(sam.change) + fmt(Math.abs(sam.change)) + '원 (' + sign(sam.changePct) + Math.abs(sam.changePct).toFixed(2) + '%)';
     document.getElementById('samsungReturn').className   = 'price-change ' + colorClass(ret);
-    document.getElementById('samsungReturn').textContent = sign(ret) + ret.toFixed(2) + '%';
+    document.getElementById('samsungReturn').textContent = sign(ret) + Math.abs(ret).toFixed(2) + '%';
     document.getElementById('samsungEval').textContent   = fmt(sam.price * QTY) + '원';
     document.getElementById('samsungPnlAmt').className   = colorClass(pnl);
-    document.getElementById('samsungPnlAmt').textContent = sign(pnl) + fmt(pnl) + '원';
+    document.getElementById('samsungPnlAmt').textContent = sign(pnl) + fmt(Math.abs(pnl)) + '원';
     document.getElementById('samsung52H').textContent    = fmt(sam.high52) + '원';
     document.getElementById('samsung52L').textContent    = fmt(sam.low52) + '원';
     document.getElementById('samsungVol').textContent    = sam.volume ? fmt(sam.volume/10000, 0) + '만주' : '-';
@@ -1533,7 +1533,7 @@ async function fetchAll() {
     document.getElementById('micronChange').textContent =
       (mu.change >= 0 ? '+' : '') + '$' + mu.change.toFixed(2) + ' (' + (mu.changePct >= 0 ? '+' : '') + mu.changePct.toFixed(2) + '%)';
     document.getElementById('micronReturn').className   = 'price-change ' + colorClass(ret);
-    document.getElementById('micronReturn').textContent = sign(ret) + ret.toFixed(2) + '%';
+    document.getElementById('micronReturn').textContent = sign(ret) + Math.abs(ret).toFixed(2) + '%';
     document.getElementById('micronEval').textContent   = fmtUSD(mu.price * QTY);
     document.getElementById('micronPnlAmt').className   = colorClass(pnl);
     document.getElementById('micronPnlAmt').textContent = (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1566,7 +1566,7 @@ async function fetchAll() {
 
     if (mu.prePrice) {
       const preChg = ((mu.prePrice - mu.price) / mu.price * 100);
-      document.getElementById('micronPre').textContent  = fmtUSD(mu.prePrice) + ' (' + sign(preChg) + preChg.toFixed(2) + '%)';
+      document.getElementById('micronPre').textContent  = fmtUSD(mu.prePrice) + ' (' + sign(preChg) + Math.abs(preChg).toFixed(2) + '%)';
       document.getElementById('micronPre').className    = colorClass(preChg);
     }
 
@@ -1584,22 +1584,22 @@ async function fetchAll() {
   // ── 매크로 ──
   if (krw) {
     document.getElementById('usdkrwVal').textContent = fmt(krw.price, 1);
-    document.getElementById('usdkrwChg').textContent = sign(krw.change) + fmt(krw.change, 1) + ' (' + sign(krw.changePct) + krw.changePct.toFixed(2) + '%)';
+    document.getElementById('usdkrwChg').textContent = sign(krw.change) + fmt(Math.abs(krw.change), 1) + ' (' + sign(krw.changePct) + Math.abs(krw.changePct).toFixed(2) + '%)';
     document.getElementById('usdkrwChg').className   = 'macro-sub ' + colorClass(-krw.change); // 환율 오르면 원화 약세 = 위험
   }
   if (tnx) {
     document.getElementById('tnxVal').textContent = tnx.price.toFixed(3) + '%';
-    document.getElementById('tnxChg').textContent = sign(tnx.change) + tnx.change.toFixed(3) + '%p';
+    document.getElementById('tnxChg').textContent = sign(tnx.change) + Math.abs(tnx.change).toFixed(3) + '%p';
     document.getElementById('tnxChg').className   = 'macro-sub ' + colorClass(-tnx.change);
   }
   if (sox) {
     document.getElementById('soxVal').textContent = fmt(sox.price, 0);
-    document.getElementById('soxChg').textContent = sign(sox.changePct) + sox.changePct.toFixed(2) + '%';
+    document.getElementById('soxChg').textContent = sign(sox.changePct) + Math.abs(sox.changePct).toFixed(2) + '%';
     document.getElementById('soxChg').className   = 'macro-sub ' + colorClass(sox.changePct);
   }
   if (ndx) {
     document.getElementById('ndxVal').textContent = fmt(ndx.price, 0);
-    document.getElementById('ndxChg').textContent = sign(ndx.changePct) + ndx.changePct.toFixed(2) + '%';
+    document.getElementById('ndxChg').textContent = sign(ndx.changePct) + Math.abs(ndx.changePct).toFixed(2) + '%';
     document.getElementById('ndxChg').className   = 'macro-sub ' + colorClass(ndx.changePct);
   }
 
@@ -1662,32 +1662,39 @@ function drawChart(canvasId, history, buyDateStr, bep, currency) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
-  const dpr = window.devicePixelRatio || 1;
-  // offsetWidth/Height가 0이면 부모 너비로 추정
-  const W = Math.max(canvas.offsetWidth, canvas.parentElement?.offsetWidth || 300);
-  const H = 80;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+  // 실제 렌더링 함수 — 현재 카드 너비 기준으로 그림
+  function render() {
+    const dpr  = window.devicePixelRatio || 1;
+    const card = canvas.closest('.card');
+    const style = card ? window.getComputedStyle(card) : null;
+    const padL  = style ? parseFloat(style.paddingLeft)  || 16 : 16;
+    const padR  = style ? parseFloat(style.paddingRight) || 16 : 16;
+    const W = card ? Math.max(card.clientWidth - padL - padR, 60) : 300;
+    const H = 80;
 
-  const pad = { top: 8, right: 8, bottom: 4, left: 8 };
-  const cW = W - pad.left - pad.right;
-  const cH = H - pad.top  - pad.bottom;
+    canvas.width        = W * dpr;
+    canvas.height       = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
 
-  // 유효 데이터 필터
-  const data = history.filter(d => d.c != null);
-  if (data.length < 2) return;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
 
-  const prices = data.map(d => d.c);
-  const minP   = Math.min(...prices);
-  const maxP   = Math.max(...prices);
-  const range  = maxP - minP || 1;
+    const pad = { top: 8, right: 8, bottom: 4, left: 8 };
+    const cW = W - pad.left - pad.right;
+    const cH = H - pad.top  - pad.bottom;
 
-  const xOf = (i) => pad.left + (i / (data.length - 1)) * cW;
-  const yOf = (p) => pad.top  + cH - ((p - minP) / range) * cH;
+    // 유효 데이터 필터
+    const data = history.filter(d => d.c != null);
+    if (data.length < 2) return;
+
+    const prices = data.map(d => d.c);
+    const minP   = Math.min(...prices);
+    const maxP   = Math.max(...prices);
+    const range  = maxP - minP || 1;
+
+    const xOf = (i) => pad.left + (i / (data.length - 1)) * cW;
+    const yOf = (p) => pad.top  + cH - ((p - minP) / range) * cH;
 
   // 배경
   ctx.fillStyle = '#0a0c10';
@@ -1768,6 +1775,18 @@ function drawChart(canvasId, history, buyDateStr, bep, currency) {
   ctx.textAlign = buyIdx > data.length * 0.7 ? 'right' : 'left';
   const labelX = buyIdx > data.length * 0.7 ? buyX - 6 : buyX + 6;
   ctx.fillText(labelText, labelX, Math.max(pad.top + 10, buyY - 6));
+  } // end render()
+
+  // 최초 렌더
+  render();
+
+  // 카드 너비 변화 감지 → 재렌더 (반응형)
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => render());
+    const card = canvas.closest('.card');
+    if (card) ro.observe(card);
+    canvas._resizeObserver = ro; // 참조 보관 (필요 시 disconnect 가능)
+  }
 }
 
 // ── 보유기간 진행 바 업데이트 ──
