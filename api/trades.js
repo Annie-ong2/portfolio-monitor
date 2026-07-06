@@ -4,7 +4,7 @@
 // 당일 체결: 국내/해외 당일 API 실시간 반영
 
 const KIS_BASE     = 'https://openapi.koreainvestment.com:9443';
-const NOTION_DB_ID = '9599e009-759e-4622-90c8-923f981db372';
+const NOTION_DB_ID = '41c58398-43ad-46b2-8e73-e7d0bca6a833';
 
 // Notion DB에서 거래내역 불러오기 (PRIOR_TRADES 대체)
 // 스키마: Name(title), date(text), market(text), symbol(text),
@@ -117,7 +117,17 @@ async function getDomesticRealizedPnL(token, appKey, appSecret, accountNo) {
   return { pnl: totalPnL, error: null };
 }
 
-// ── 마이크론 실현손익: Notion DB 기반 (폴백: PRIOR_TRADES)
+// ── 삼성전자 실현손익: KIS API 우선, 실패 시 Notion 기반 계산
+function calcSamsungRealizedPnL(baseTrades) {
+  const sells = baseTrades.filter(t => t.symbol === '005930' && t.side === 'SELL');
+  const buys  = baseTrades.filter(t => t.symbol === '005930' && t.side === 'BUY');
+  if (!sells.length || !buys.length) return 0;
+  // 가중평균 매입단가
+  const totalBuyQty = buys.reduce((s, t) => s + t.qty, 0);
+  const totalBuyCost = buys.reduce((s, t) => s + t.price * t.qty, 0);
+  const avgBuyPrice = totalBuyCost / totalBuyQty;
+  return sells.reduce((sum, t) => sum + (t.price - avgBuyPrice) * t.qty, 0);
+}
 function calcMicronRealizedPnL(baseTrades, todayTrades) {
   const allSells = [
     ...baseTrades.filter(t => t.symbol === 'MU' && t.side === 'SELL'),
@@ -230,7 +240,12 @@ export default async function handler(req, res) {
     const oToday = oTodayR.status==='fulfilled'  ? oTodayR.value : [];
     const dToday = dTodayR.status==='fulfilled'  ? dTodayR.value : [];
 
-    const samsungPnL = dRzd.error ? 0 : dRzd.pnl;
+    // 삼성전자: KIS API 우선, 에러 또는 0원이면 Notion 기반으로 폴백
+    const kisSamsungPnL = dRzd.error ? null : dRzd.pnl;
+    const notionSamsungPnL = calcSamsungRealizedPnL(baseTrades);
+    const samsungPnL = (kisSamsungPnL !== null && kisSamsungPnL !== 0)
+      ? kisSamsungPnL
+      : notionSamsungPnL;
     const micronPnL  = calcMicronRealizedPnL(baseTrades, oToday);
 
     const allOTrades = mergeTrades([...baseTrades.filter(t=>t.market==='US'), ...oToday]);
@@ -239,7 +254,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       trades: [...allDTrades, ...allOTrades],
       realized: {
-        samsung: { realizedPnL: samsungPnL, source: dRzd.error ? 'none' : 'api' },
+        samsung: { realizedPnL: samsungPnL, source: (kisSamsungPnL !== null && kisSamsungPnL !== 0) ? 'api' : 'notion_fallback' },
         micron:  { realizedPnL: micronPnL,  source: oToday.some(t=>t.symbol==='MU'&&t.side==='SELL') ? 'notion+api_today' : notionSource },
       },
       debug: {
