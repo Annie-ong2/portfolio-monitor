@@ -13,13 +13,10 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'API 키 미설정' });
 
   const { headlines, portfolio } = req.body;
-  if (!headlines || headlines.length === 0) {
-    return res.status(400).json({ error: '헤드라인 없음' });
-  }
-
-  const headlineText = headlines.map((h, i) =>
-    `[${i+1}] (${h.source}) ${h.title} | ${h.desc}`
-  ).join('\n');
+  // headlines가 없어도 포트폴리오 정보만으로 분석 진행
+  const headlineText = (headlines && headlines.length > 0)
+    ? headlines.map((h, i) => `[${i+1}] (${h.source}) ${h.title} | ${h.desc}`).join('\n')
+    : '(현재 뉴스 수집 불가 — 보유 현황 및 시장 컨텍스트 기반으로 분석)';
 
   // 실시간 포트폴리오 정보 반영
   const samInfo = portfolio?.samsung
@@ -112,3 +109,4 @@ JSON만 응답 (다른 텍스트 없이):
     return res.status(500).json({ error: e.message });
   }
 }
+
