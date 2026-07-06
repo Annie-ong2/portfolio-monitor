@@ -3,6 +3,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST만 허용' });
@@ -27,13 +29,21 @@ export default async function handler(req, res) {
     ? `${portfolio.micron.qty || 15}주, 매입단가 $${portfolio.micron.bep || 1040.60}, 현재가 ${portfolio.micron.currentPrice}, 수익률 ${portfolio.micron.returnPct}%`
     : '15주, 매입단가 $1,040.60';
 
+  const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
+
   const prompt = `당신은 삼성전자(005930.KS)와 마이크론 테크놀로지(MU) 두 종목을 보유한 투자자의 포트폴리오 모니터링 AI입니다.
+
+오늘 날짜: ${today}
 
 현재 보유 현황 (실시간):
 - 삼성전자: ${samInfo}
 - 마이크론: ${muInfo}
 - 전략: 3개월 중기 보유, 매수 논리 훼손 시 매도
 - 익절 목표: 삼성전자 1차 380,000원/2차 420,000원, 마이크론 1차 $1,100/2차 $1,200
+
+주요 이벤트 현황:
+- 마이크론 Q3 FY2026 실적발표: 2026.06.24 완료 (EPS $4.47 vs 예상 $4.60 미달, 매출 $9.8B 예상 상회, 주가 발표 후 -5% 조정)
+- 현재는 실적 발표 이후 주가 방향성 및 HBM4 수요 모멘텀이 핵심 변수
 
 아래 최신 뉴스를 분석해 두 종목 투자 전략에 중요한 영향을 줄 이슈를 골라주세요.
 
