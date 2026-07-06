@@ -4,7 +4,7 @@
 // 당일 체결: 국내/해외 당일 API 실시간 반영
 
 const KIS_BASE     = 'https://openapi.koreainvestment.com:9443';
-const NOTION_DB_ID = '41c58398-43ad-46b2-8e73-e7d0bca6a833';
+const NOTION_DB_ID = '9599e009-759e-4622-90c8-923f981db372'; // Notion API database ID
 
 // Notion DB에서 거래내역 불러오기 (PRIOR_TRADES 대체)
 // 스키마: Name(title), date(text), market(text), symbol(text),
@@ -240,12 +240,13 @@ export default async function handler(req, res) {
     const oToday = oTodayR.status==='fulfilled'  ? oTodayR.value : [];
     const dToday = dTodayR.status==='fulfilled'  ? dTodayR.value : [];
 
-    // 삼성전자: KIS API 우선, 에러 또는 0원이면 Notion 기반으로 폴백
-    const kisSamsungPnL = dRzd.error ? null : dRzd.pnl;
-    const notionSamsungPnL = calcSamsungRealizedPnL(baseTrades);
-    const samsungPnL = (kisSamsungPnL !== null && kisSamsungPnL !== 0)
-      ? kisSamsungPnL
-      : notionSamsungPnL;
+    // 삼성전자: Notion 매도내역 있으면 Notion 기반 우선, 없으면 KIS API
+    const notionSamsungPnL  = calcSamsungRealizedPnL(baseTrades);
+    const notionHasSamsungSell = baseTrades.some(t => t.symbol === '005930' && t.side === 'SELL');
+    const kisSamsungPnL     = dRzd.error ? null : dRzd.pnl;
+    const samsungPnL = notionHasSamsungSell
+      ? notionSamsungPnL                              // Notion 매도내역 있으면 Notion 우선
+      : (kisSamsungPnL !== null ? kisSamsungPnL : 0); // 없으면 KIS API
     const micronPnL  = calcMicronRealizedPnL(baseTrades, oToday);
 
     const allOTrades = mergeTrades([...baseTrades.filter(t=>t.market==='US'), ...oToday]);
@@ -254,7 +255,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       trades: [...allDTrades, ...allOTrades],
       realized: {
-        samsung: { realizedPnL: samsungPnL, source: (kisSamsungPnL !== null && kisSamsungPnL !== 0) ? 'api' : 'notion_fallback' },
+        samsung: { realizedPnL: samsungPnL, source: notionHasSamsungSell ? 'notion' : (dRzd.error ? 'none' : 'api') },
         micron:  { realizedPnL: micronPnL,  source: oToday.some(t=>t.symbol==='MU'&&t.side==='SELL') ? 'notion+api_today' : notionSource },
       },
       debug: {
