@@ -100,7 +100,12 @@ JSON만 응답 (다른 텍스트 없이):
     try {
       parsed = JSON.parse(clean);
     } catch(parseErr) {
-      throw new Error(`JSON 파싱 실패: ${clean.slice(0, 100)}`);
+      // JSON 파싱 실패 시 텍스트 그대로 summary로 반환
+      return res.status(200).json({
+        alerts: [],
+        summary: clean.slice(0, 200) || 'AI 분석 완료 (요약 형식 오류)',
+        _parseError: true,
+      });
     }
 
     return res.status(200).json(parsed);
