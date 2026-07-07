@@ -23,11 +23,11 @@ export default async function handler(req, res) {
 
   // 실시간 포트폴리오 정보 반영
   const samInfo = portfolio?.samsung
-    ? `${portfolio.samsung.qty || 70}주, 매입단가 ${portfolio.samsung.bep || 349500}원, 현재가 ${portfolio.samsung.currentPrice}, 수익률 ${portfolio.samsung.returnPct}%`
-    : '70주, 매입단가 349,500원';
+    ? `${portfolio.samsung.qty}주, 매입단가 ${portfolio.samsung.bep}원, 현재가 ${portfolio.samsung.currentPrice}, 수익률 ${portfolio.samsung.returnPct !== null ? portfolio.samsung.returnPct + '%' : '미조회'}`
+    : '보유 현황 미제공 (시장 컨텍스트 기반 분석)';
   const muInfo = portfolio?.micron
-    ? `${portfolio.micron.qty || 15}주, 매입단가 $${portfolio.micron.bep || 1040.60}, 현재가 ${portfolio.micron.currentPrice}, 수익률 ${portfolio.micron.returnPct}%`
-    : '15주, 매입단가 $1,040.60';
+    ? `${portfolio.micron.qty}주, 매입단가 $${portfolio.micron.bep}, 현재가 ${portfolio.micron.currentPrice}, 수익률 ${portfolio.micron.returnPct !== null ? portfolio.micron.returnPct + '%' : '미조회'}`
+    : '보유 현황 미제공 (시장 컨텍스트 기반 분석)';
 
   const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
 
