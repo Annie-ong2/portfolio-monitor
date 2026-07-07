@@ -12,7 +12,10 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'API 키 미설정' });
 
-  const { headlines, portfolio } = req.body;
+  const body = req.body || {};
+  const headlines = body.headlines || [];
+  const portfolio = body.portfolio || null;
+
   // headlines가 없어도 포트폴리오 정보만으로 분석 진행
   const headlineText = (headlines && headlines.length > 0)
     ? headlines.map((h, i) => `[${i+1}] (${h.source}) ${h.title} | ${h.desc}`).join('\n')
