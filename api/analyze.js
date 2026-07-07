@@ -85,25 +85,29 @@ JSON만 응답 (다른 텍스트 없이):
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
+        max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(`Claude API 오류 ${response.status}: ${errData.error?.message || response.statusText}`);
+      const errMsg = `Claude API ${response.status}: ${errData.error?.message || response.statusText}`;
+      console.error('[analyze] Claude API error:', errMsg);
+      throw new Error(errMsg);
     }
 
     const data = await response.json();
     const raw = data.content?.map(c => c.text || '').join('') || '';
     const clean = raw.replace(/```json|```/g, '').trim();
 
+    console.log('[analyze] raw response:', clean.slice(0, 100));
+
     let parsed;
     try {
       parsed = JSON.parse(clean);
     } catch(parseErr) {
-      // JSON 파싱 실패 시 텍스트 그대로 summary로 반환
+      console.error('[analyze] JSON parse error:', clean.slice(0, 200));
       return res.status(200).json({
         alerts: [],
         summary: clean.slice(0, 200) || 'AI 분석 완료 (요약 형식 오류)',
@@ -114,6 +118,7 @@ JSON만 응답 (다른 텍스트 없이):
     return res.status(200).json(parsed);
 
   } catch (e) {
+    console.error('[analyze] handler error:', e.message);
     return res.status(500).json({ error: e.message });
   }
 }
