@@ -1872,10 +1872,14 @@ async function runNewsScan() {
   }
 
   // 2단계: 실시간 손익 계산 후 Claude 분석 요청
-  const samRet   = samsungData ? ((samsungData.price - kisData.samsung.avgPrice) / kisData.samsung.avgPrice * 100).toFixed(2) : '-13.45';
-  const muRet    = micronData  ? ((micronData.price  - kisData.micron.avgPrice)  / kisData.micron.avgPrice  * 100).toFixed(2) : '-13.78';
-  const samPrice = samsungData ? Math.round(samsungData.price).toLocaleString('ko-KR') + '원' : '미조회';
-  const muPrice  = micronData  ? '$' + micronData.price.toFixed(2) : '미조회';
+  const samAvg    = kisData.samsung.avgPrice;
+  const muAvg     = kisData.micron.avgPrice;
+  const samCur    = samsungData?.price || null;
+  const muCur     = micronData?.price  || null;
+  const samRet    = samCur ? ((samCur - samAvg) / samAvg * 100).toFixed(2) : null;
+  const muRet     = muCur  ? ((muCur  - muAvg)  / muAvg  * 100).toFixed(2) : null;
+  const samPrice  = samCur ? Math.round(samCur).toLocaleString('ko-KR') + '원' : '미조회';
+  const muPrice   = muCur  ? '$' + muCur.toFixed(2) : '미조회';
 
   try {
     const response = await fetch('/api/analyze', {
@@ -2180,4 +2184,5 @@ window.addEventListener('load', function() {
 </div><!-- /.page-wrap -->
 </body>
 </html>
+
 
