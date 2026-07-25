@@ -645,7 +645,7 @@
 <!-- 헤더 -->
 <div class="header">
   <div>
-    <div class="header-title">포트폴리오 모니터<span class="version">v1.4.2</span></div>
+    <div class="header-title">포트폴리오 모니터<span class="version">v1.4.3</span></div>
     <div style="font-size:11px; color:var(--text-dim); margin-top:3px;">삼성전자 · 마이크론 테크놀로지</div>
   </div>
   <div style="text-align:right;">
@@ -725,7 +725,7 @@
         <div class="price-change down" id="samsungChange">-</div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">평가 수익률</div>
+        <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">보유평가손익률</div>
         <div class="price-change" id="samsungReturn" style="font-size:16px;">-</div>
       </div>
     </div>
@@ -739,7 +739,7 @@
         <span id="samsungQtySpan">70주</span>
       </div>
       <div class="meta-item">
-        <label>매입단가</label>
+        <label>매수평단</label>
         <span id="samsungAvgSpan">349,500원</span>
       </div>
       <div class="meta-item">
@@ -747,7 +747,7 @@
         <span id="samsungEval">-</span>
       </div>
       <div class="meta-item">
-        <label>손익금액</label>
+        <label>평가손익금액</label>
         <span id="samsungPnlAmt" class="down">-</span>
       </div>
     </div>
@@ -809,7 +809,7 @@
         <canvas id="samsungChart" style="width:100%;max-width:100%;height:80px;display:block;box-sizing:border-box;" height="80"></canvas>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
           <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
-          <span>매수 2026.06.04 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">349,500원</span></span>
+          <span>매수 2026.06.04 · 최초매수가 <span style="color:var(--text-hi);font-weight:600;">349,500원</span></span>
         </div>
       </div>
     </div>
@@ -828,7 +828,7 @@
         <div class="price-change down" id="micronChange">-</div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">평가 수익률</div>
+        <div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;">보유평가손익률</div>
         <div class="price-change" id="micronReturn" style="font-size:16px;">-</div>
       </div>
     </div>
@@ -842,7 +842,7 @@
         <span id="micronQtySpan">15주</span>
       </div>
       <div class="meta-item">
-        <label>매입단가</label>
+        <label>매수평단</label>
         <span id="micronAvgSpan">$1,040.60</span>
       </div>
       <div class="meta-item">
@@ -850,7 +850,7 @@
         <span id="micronEval">-</span>
       </div>
       <div class="meta-item">
-        <label>손익금액</label>
+        <label>평가손익금액</label>
         <span id="micronPnlAmt" class="down">-</span>
       </div>
     </div>
@@ -911,7 +911,7 @@
       <canvas id="micronChart" style="width:100%;max-width:100%;height:80px;display:block;box-sizing:border-box;" height="80"></canvas>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text-dim);margin-top:5px;display:flex;align-items:center;gap:6px;">
         <span style="display:inline-block;width:8px;height:2px;background:var(--text-hi);vertical-align:middle;"></span>
-        <span>매수 2026.06.02 · 평균단가 <span style="color:var(--text-hi);font-weight:600;">$1,040.60</span></span>
+        <span>매수 2026.06.02 · 최초매수가 <span style="color:var(--text-hi);font-weight:600;">$1,040.60</span></span>
       </div>
     </div>
   </div>
@@ -1185,7 +1185,7 @@ function renderTradeList(symbol, trades, divId, market) {
     const dateStr = t.date.slice(0,4)+'.'+t.date.slice(4,6)+'.'+t.date.slice(6,8);
     const priceStr = market === 'KR' ? t.price.toLocaleString()+'원' : '$'+parseFloat(t.price).toLocaleString('en-US',{minimumFractionDigits:2});
     return `<div class="trade-item">
-      <span style="color:var(--text);font-weight:600;">${t.side==='SELL'?'매도':'매수'}</span>
+      <span style="color:${t.side==='SELL'?'#4d9fff':'#ff4d6a'};font-weight:600;">${t.side==='SELL'?'매도':'매수'}</span>
       <span>${t.qty}주 @ ${priceStr}</span>
       <span>${dateStr}</span>
     </div>`;
